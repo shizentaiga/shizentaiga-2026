@@ -1,34 +1,58 @@
-# prod
+# ---------------------------------------------------------
+# 1. ビルド成果物 (Build Artifacts)
+# ---------------------------------------------------------
+# Vite/Honoのビルド出力。SSG（静的サイト生成）成果物とソースコードを分離します。
 dist/
 dist-server/
+.assetsignore
 
-# dev
-.yarn/
-!.yarn/releases
-.vscode/*
-!.vscode/launch.json
-!.vscode/*.code-snippets
-.idea/workspace.xml
-.idea/usage.statistics.xml
-.idea/shelf
-
-# deps
+# ---------------------------------------------------------
+# 2. 依存関係 (Dependencies)
+# ---------------------------------------------------------
 node_modules/
-.wrangler
+.wrangler/
 
-# env
+# ---------------------------------------------------------
+# 3. 環境設定・機密情報 (Environment Variables)
+# ---------------------------------------------------------
+# Stripeキー等の漏洩を防ぐため、あらゆる命名パターンのenvファイルをガードします。
 .env
-.env.production
+.env.*
+*.env*
 .dev.vars
+*.local
 
-# logs
+# ---------------------------------------------------------
+# 4. エディタ・OS固有の設定 (Editor & OS Specific)
+# ---------------------------------------------------------
+# macOS/Windows固有の一時ファイル。
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+Thumbs.db
+
+# VS Code設定。
+# 推奨拡張機能やプロジェクト共通設定のみを共有し、個人設定は除外します。
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+# デバッグ設定に機密情報を含めるリスクを考慮し、デフォルトでは除外（保守的運用）
+#.vscode/launch.json
+
+# JetBrains (IntelliJ / WebStorm)
+.idea/
+
+# ---------------------------------------------------------
+# 5. ログファイル (Logs)
+# ---------------------------------------------------------
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-# misc
-.DS_Store
+# ---------------------------------------------------------
+# 6. その他 (Misc)
+# ---------------------------------------------------------
+.npm/
