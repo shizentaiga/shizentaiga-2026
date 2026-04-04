@@ -1,0 +1,170 @@
+/* ---------------------------------------
+    General Styles
+--------------------------------------- */
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #fcfcfc;
+    color: #2b2b2b;
+    font-size: 16px;
+    font-family: "游明朝", YuMincho, "ヒラギノ明朝 ProN W3", "Hiragino Mincho ProN", "MS PMincho", serif;
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+}
+
+.container {
+    /* clamp(最小値, 推奨値, 最大値) で動的に幅を定義 */
+    width: 92%; 
+    max-width: clamp(320px, 50vw, 540px); 
+    margin: 0 auto;
+    padding: 100px 0; /* 左右のパディングを0にして、幅の制御をmax-widthに一任 */
+}
+
+@media (max-width: 600px) {
+    /* .container のパディング修正は不要になったため削除 */
+    h1 { font-size: 1.8rem; }
+}
+
+header {
+    margin-bottom: 60px;
+    text-align: center;
+}
+
+h1 {
+    font-weight: 500;
+    font-size: 2.2rem;
+    letter-spacing: 0.2rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ---------------------------------------
+    Sections & Components
+--------------------------------------- */
+.subtitle {
+    display: block;       /* これを追加：強制的に改行させます */
+    font-size: 0.9rem;
+    color: #555555;
+    letter-spacing: 0.3rem;
+    text-transform: uppercase;
+    margin-top: 0.5rem;   /* これを追加：名前との「行間」を調整します */
+}
+
+section { margin-bottom: 80px; }
+
+h2 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    border-left: 1px solid #1a1a1a;
+    padding-left: 15px;
+    margin-bottom: 30px;
+    letter-spacing: 0.1rem;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin: 60px 0;
+}
+
+/* ---------------------------------------
+    Profile Image (LCP & CLS Optimization)
+--------------------------------------- */
+.profile-image-area {
+    margin-bottom: 30px;
+    background-color: #f0f0f0; 
+    aspect-ratio: 3 / 4;
+    /* 写真自体の最大幅を少し絞り、テキストとの親和性を高めます */
+    max-width: 280px; 
+    margin-left: auto;
+    margin-right: auto;
+}
+
+img {
+    display: block;
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    border-radius: 2px;
+}
+
+/* ---------------------------------------
+    Buttons & Links
+--------------------------------------- */
+.btn {
+    display: inline-block;
+    padding: 12px 30px;
+    border: 1px solid #1a1a1a;
+    color: #1a1a1a;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+.btn:hover {
+    background-color: #1a1a1a;
+    color: #fff;
+}
+
+.link-list {
+    list-style: none;
+    padding: 0;
+}
+
+.link-list li { margin-bottom: 15px; }
+
+.link-list a {
+    color: #1a1a1a;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+/* ---------------------------------------
+    Footer & Contact (Refined for Accessibility)
+--------------------------------------- */
+footer {
+    margin-top: 100px;
+    text-align: center;
+    font-size: 0.8rem;
+}
+
+/* 文字色を少し濃いめの #555555 に統一（コントラスト比確保） */
+.container footer p, 
+.container footer p small {
+    color: #555555;
+}
+
+/* 特商法リンク専用のスタイル */
+.footer-link {
+    color: #555555; /* 周囲の文字と色を合わせる */
+    text-decoration: underline; /* リンクであることを明示（アクセシビリティ配慮） */
+    text-underline-offset: 3px;
+    transition: color 0.3s;
+}
+
+.footer-link:hover {
+    color: #1a1a1a; /* ホバー時にのみ濃くする */
+}
+
+.container footer .selectable-email {
+    user-select: all;
+    -webkit-user-select: all;
+    color: #1a1a1a; 
+    border-bottom: 1px dotted #555555;
+    cursor: text;
+    padding: 2px 4px;
+    background-color: rgba(0,0,0,0.02);
+    border-radius: 2px;
+}
+
+/* ---------------------------------------
+    Utilities
+--------------------------------------- */
+.pc-only {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .pc-only {
+        display: inline;
+    }
+}
