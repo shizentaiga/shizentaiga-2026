@@ -42,7 +42,7 @@ app.get('/', (c) => {
 
       <meta name="twitter:card" content="summary_large_image">
       <meta name="twitter:title" content="清善 泰賀 | Taiga Shizen Official">
-      <meta name="twitter:description" content="不完全な論理 of the logic のその先を、観測する。">
+      <meta name="twitter:description" content="不完全な論理のその先を、観測する。">
       <meta name="twitter:image" content="https://shizentaiga.com/images/og-p.webp">
 
       <link rel="stylesheet" href="/style.css">
