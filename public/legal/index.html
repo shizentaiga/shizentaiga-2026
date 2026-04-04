@@ -8,31 +8,30 @@
     <link rel="stylesheet" href="../style.css">
     <style>
         :root {
-            /* コントラスト比改善: テキストをより濃く、視認性を向上 */
             --text-color: #222; 
             --light-gray: #fcfcfc;
             --border-color: #ddd;
             --sub-text-color: #555;
-            --last-updated-color: #666; /* 指摘対応: #999から変更しコントラストを確保 */
+            --last-updated-color: #666;
         }
         body {
             font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
-            line-height: 1.8;
+            line-height: 1.6; /* 1.8から1.6へ。標準的な密度に修正 */
             color: var(--text-color);
-            max-width: 840px; /* わずかに幅を広げ、ゆとりを確保 */
+            max-width: 800px; /* 少し絞って密度を向上 */
             margin: 0 auto;
-            padding: 60px 24px; /* 上下の余白を増やして開放感を出す */
+            padding: 40px 24px; /* 上下余白を縮小 */
             background-color: #fff;
         }
         header {
-            margin-bottom: 80px; /* 余白を広めに設定 */
+            margin-bottom: 60px; /* 余白を縮小 */
             text-align: center;
         }
         h1 {
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             font-weight: 500;
             letter-spacing: 0.08em;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         nav ul {
             list-style: none;
@@ -40,8 +39,8 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 20px; /* リンク間の間隔を広げる */
-            font-size: 0.95rem;
+            gap: 15px; /* 間隔を少し詰める */
+            font-size: 0.9rem;
         }
         nav a {
             color: var(--sub-text-color);
@@ -54,18 +53,18 @@
             border-bottom: 1px solid var(--text-color);
         }
         section {
-            margin-bottom: 100px; /* セクション間の余白を拡大し、情報の混同を防ぐ */
-            scroll-margin-top: 60px;
+            margin-bottom: 60px; /* セクション間を100pxから60pxへ短縮 */
+            scroll-margin-top: 40px;
         }
         h2 {
-            font-size: 1.3rem;
+            font-size: 1.2rem;
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 12px;
-            margin-bottom: 25px;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
             font-weight: 600;
         }
         p {
-            margin-bottom: 1.8em; /* 行間の余裕 */
+            margin-bottom: 1.2em; /* 1.8emから1.2emへ。行間を元に戻す */
         }
         strong {
             font-weight: 600;
@@ -73,27 +72,27 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 25px;
-            font-size: 1rem;
+            margin-top: 15px;
+            font-size: 0.95rem;
         }
         th, td {
             text-align: left;
-            padding: 18px; /* セル内の余白を増やして読みやすく */
+            padding: 12px 15px; /* パディングを縮小し、情報を凝縮 */
             border-bottom: 1px solid var(--border-color);
             vertical-align: top;
         }
         th {
-            width: 32%;
+            width: 30%;
             background-color: var(--light-gray);
             font-weight: 500;
             color: var(--sub-text-color);
         }
         .last-updated {
-            font-size: 0.85rem;
-            color: var(--last-updated-color); /* コントラスト比改善済み */
+            font-size: 0.8rem;
+            color: var(--last-updated-color);
             text-align: right;
-            margin-top: 60px;
-            padding-top: 20px;
+            margin-top: 40px;
+            padding-top: 15px;
             border-top: 1px dotted var(--border-color);
         }
         @media print {
@@ -103,8 +102,8 @@
         }
         @media (max-width: 640px) {
             th, td { display: block; width: 100%; box-sizing: border-box; }
-            th { border-bottom: none; padding-bottom: 8px; background-color: transparent; font-weight: 600; }
-            td { padding-top: 0; padding-bottom: 20px; }
+            th { border-bottom: none; padding-bottom: 4px; background-color: transparent; font-weight: 600; }
+            td { padding-top: 0; padding-bottom: 15px; }
         }
     </style>
 </head>
@@ -169,44 +168,44 @@
                 <td>各サービスの予約ページ、またはお申込みフォームに表示される金額（税込）</td>
             </tr>
             <tr>
-                <th>代金の支払い方法</th>
+                <th>支払い方法</th>
                 <td>クレジットカード決済、銀行振込</td>
             </tr>
             <tr>
-                <th>代金の支払い時期</th>
-                <td>【クレジットカード決済】ご注文時（即時決済）となります。<br>【銀行振込】ご注文日から3日以内にお振込みください。</td>
+                <th>支払い時期</th>
+                <td>【カード】ご注文時（即時決済）<br>【銀行振込】ご注文日から3日以内</td>
             </tr>
             <tr>
-                <th>商品の引き渡し時期</th>
-                <td>予約完了後、指定の日時にサービスを提供いたします。デジタルコンテンツの場合は決済完了後、即時またはメールにて送付いたします。</td>
+                <th>商品の引渡時期</th>
+                <td>予約完了後、指定日時に提供。デジタルコンテンツは決済完了後、即時またはメール送付。</td>
             </tr>
         </table>
     </section>
 
     <section id="refund">
-        <h2>返金・返品・キャンセル規定 (Refund Policy)</h2>
-        <p><strong>【キャンセルについて】</strong><br>
+        <h2>返金・キャンセル規定 (Refund Policy)</h2>
+        <p><strong>【キャンセル】</strong><br>
         予約実施の<strong>3日前（72時間前）まで</strong>：全額返金または振替を承ります。<br>
-        それ以降：サービスおよびデジタルコンテンツの性質上、返金・キャンセルには応じられません。</p>
+        それ以降：返金・キャンセルには応じられません。</p>
         
-        <p><strong>【不良品・破損時の対応】</strong><br>
-        提供するサービスやコンテンツに不備・不具合がある場合は、速やかに調査し、再提供または個別対応をいたします。<a href="#contact">お問い合わせ窓口</a>よりご連絡ください。</p>
+        <p><strong>【不良品・不備】</strong><br>
+        サービスやコンテンツに不備がある場合は、速やかに調査し再提供等の対応をいたします。<a href="#contact">窓口</a>よりご連絡ください。</p>
     </section>
 
     <section id="contact">
         <h2>お問い合わせ (Contact Us)</h2>
-        <p>本サイトのサービス、個人情報の取り扱い、または特定商取引法に基づく表記の開示請求に関するお問い合わせは、以下のメールアドレスへご連絡ください。</p>
+        <p>各種請求や個人情報の取り扱いに関するお問い合わせは、以下の窓口へご連絡ください。</p>
         <table>
             <tr>
-                <th>メールアドレス</th>
+                <th>メール</th>
                 <td><a href="mailto:contact@shizentaiga.com">contact@shizentaiga.com</a></td>
             </tr>
             <tr>
                 <th>営業時間</th>
-                <td>平日 10:00 〜 18:00（土日祝日、年末年始を除く）</td>
+                <td>平日 10:00 〜 18:00</td>
             </tr>
             <tr>
-                <th>応答時間の目安</th>
+                <th>応答目安</th>
                 <td>原則として2営業日以内に回答いたします。</td>
             </tr>
         </table>
