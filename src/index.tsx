@@ -13,6 +13,7 @@ import { Hono } from 'hono'
 import { renderer } from './renderer' 
 import { Top } from './pages/Top'     
 import { Legal } from './pages/Legal' 
+import { Services } from './pages/Services'
 
 const app = new Hono()
 
@@ -49,6 +50,19 @@ app.get('/legal', (c) => {
   return c.render(<Legal />, { 
     title: 'Legal Information', 
     description: '特定商取引法に基づく表記、利用規約、プライバシーポリシー等の法務情報を掲載しています。' 
+  })
+})
+
+// 3. サービス一覧・予約ページ（新規追加）
+app.get('/services', (c) => {
+  /**
+   * 【運用の勘所】
+   * title は「Services | 清善 泰賀」のように、
+   * ブランド名を含めておくと、検索結果やブラウザのタブで識別しやすくなります。
+   */
+  return c.render(<Services />, { 
+    title: 'Services | 清善 泰賀', 
+    description: '個別経営診断、資金調達支援、顧問契約のプラン一覧と現在の予約空き状況をご案内します。' 
   })
 })
 
