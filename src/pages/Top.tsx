@@ -40,9 +40,6 @@ export const Top = () => {
 
       <section id="links">
         <h2>Links</h2>
-        {/* 戦略的ピボット：SNSリンクは反応と目的に応じて適宜整理。
-          現在は note/Qiita に絞ることで、読了後のエンゲージメントを高める設計。
-        */}
         <ul class="link-list">
           <li><a href="https://note.com/taiga_shizen" target="_blank" rel="noopener">note</a></li>
           <li><a href="https://qiita.com/tshizen2506" target="_blank" rel="noopener">Qiita</a></li>
@@ -51,9 +48,6 @@ export const Top = () => {
     </main>
     
     <footer>
-      {/* 法務リスク管理：
-        決済ボタンを設置するサービス展開において、/legal（特商法）への導線維持は必須。
-      */}
       <p>&copy; 2026 Taiga Shizen.</p>
       <p><small><a href="/legal" class="footer-link">特定商取引法に基づく表記</a></small></p>
       <p><small>Contact: <span class="selectable-email">contact@shizentaiga.com</span></small></p>
