@@ -1,8 +1,8 @@
 /**
  * src/constants/info.ts
  * 【真実の単一源 (Single Source of Truth)】
- * * サイト内で使用する事業者情報、価格、法務文言、URLを一括管理します。
- * 修正時の注意：このファイルを書き換えると、サイト内の全表記が連動して変わります。
+ * * サイト内で使用する事業者情報、価格、法務文言、URL、予約枠を一括管理します。
+ * 修正時の注意：このファイルを書き換えると、サイト内の全表記（Services.tsx等）が連動して変わります。
  */
 
 export const BUSINESS_INFO = {
@@ -26,34 +26,51 @@ export const BUSINESS_INFO = {
   paymentTiming: "【カード】ご注文時（即時決済） / 【銀行振込】ご注文日から3日以内",
   deliveryTiming: "予約完了後、指定日時に提供。デジタルコンテンツは決済完了後、即時またはメール送付。",
 
-  // サービス価格設定（将来の Stripe 連携や表示用）
-  prices: {
-    individualDiagnosis: {
-      label: "経営の盲点を外側から観測する個別診断",
+  // サービスプラン設定
+  // Services.tsx でループ処理するために配列形式で定義
+  services: [
+    {
+      id: "individualDiagnosis",
+      name: "経営の盲点を外側から観測する個別診断",
       duration: "90分",
-      amount: 49500,
+      price: 49500,
+      description: "経営の盲点を外側から観測し、意思決定の精度を高めます。",
       taxIncluded: true,
+      suffix: "" // ← これを追加
     },
-    fundingPhase0: {
-      label: "資金調達の構造診断【Phase 0】",
+    {
+      id: "fundingPhase0",
+      name: "資金調達の構造診断【Phase 0】",
       duration: "60分",
-      amount: 11000,
+      price: 11000,
+      description: "融資・補助金活用など、財務戦略の第一歩を具体化します。",
       taxIncluded: true,
+      suffix: "" // ← これを追加
     },
-    advisory: {
-      label: "顧問契約プラン",
-      amount: 220000,
-      suffix: "〜",
+    {
+      id: "advisory",
+      name: "顧問契約プラン",
+      duration: "1ヶ月〜",
+      price: 220000,
+      description: "継続的な伴走支援により、組織の構造的課題を解決します。",
       taxIncluded: true,
+      suffix: "〜"
     }
-  },
+  ],
+
+  // 予約可能枠（手動更新セクション）
+  // Googleカレンダー連携までの暫定運用。ここを書き換えてデプロイしてください。
+  availableSlots: [
+    { date: "2026-04-18", time: "10:00 - 12:00", status: "available" },
+    { date: "2026-04-25", time: "10:00 - 12:00", status: "available" },
+  ],
 
   // 法務・ポリシー関連の定型文
   policies: {
     cancelPolicy: "予約実施の3日前（72時間前）まで：全額返金または振替を承ります。それ以降：返金・キャンセルには応じられません。",
     disclaimer: "本サービスは特定の成果を保証するものではなく、利用者の自己責任において利用するものとします。",
     privacyBrief: "お預かりした個人情報は、サービス提供および連絡以外の目的には一切使用しません。",
-    lastUpdated: "2026-04-05",
+    lastUpdated: "2026-04-06",
   },
 
   // 外部リンク（SNS等）
@@ -69,10 +86,8 @@ export const BUSINESS_INFO = {
 
 /**
  * 💡 メンテナンス・マニュアル
- * * 1. メールの変更: BUSINESS_INFO.email を書き換えてください。
- * 2. 価格の変更: BUSINESS_INFO.prices 内の数値を変更してください。
- * 3. 所在地の開示: 実際に住所を記載する場合は、address の文字列を書き換えてください。
- * 4. SNSの追加: BUSINESS_INFO.links に新しい項目を追加してください。
- * * ※ 末尾の "as const" は、TypeScriptにおいて「これらの値は読み取り専用で、勝手に書き換えられない」
- * という安全装置（型推論の固定）の役割を果たしています。
+ * * 1. 予約枠の更新: availableSlots 配列の中身を書き換えて Push してください。
+ * 2. メールの変更: BUSINESS_INFO.email を書き換えてください。
+ * 3. 価格の変更: BUSINESS_INFO.services 内の price を変更してください。
+ * 4. 所在地の開示: 実際に住所を記載する場合は、address の文字列を書き換えてください。
  */

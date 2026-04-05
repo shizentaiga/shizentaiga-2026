@@ -17,10 +17,6 @@ export const Top = () => {
 
     <main>
       <section id="profile">
-        {/* エンジニアのハマりポイント：
-          Vite環境では画像パスの扱いに注意。'images/...' は public フォルダ直下を参照。
-          aspect-ratio と fetchpriority の組み合わせは、Core Web Vitals のスコア向上に直結する。
-        */}
         <div class="profile-image-area" style="aspect-ratio: 300 / 400;">
           <img src="images/profile.webp" 
                alt="清善 泰賀" 
