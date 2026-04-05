@@ -32,27 +32,31 @@
     │   └── google-cal.ts  # Google カレンダー連携のロジック  
     │  
     └── constants/         # 【真実の単一源】  
-        └── info.ts        # 氏名、住所、メール、サービス価格、URL等の一元管理  
+    │   └── info.ts        # 氏名、住所、メール、サービス価格、URL等の一元管理  
+    ├── db/                # 【記憶】データベース操作 (D1 / SQLite)
+    │   ├── schema.sql     # テーブル定義（slots, processed_events 等）
+    │   └── queries.ts     # 予約枠の取得・更新ロジック
 
 ## 🛠️ 技術スタック
 - **Framework**: [Hono](https://hono.dev/) v4.x (TypeScript)
 - **Build Tool**: Vite v6.x
 - **Runtime**: Cloudflare Workers (Vite 統合版)
 - **Infrastructure**: Cloudflare Network (DNS / WAF / Observability)
-- **Database**: Cloudflare D1 (SQLite) - *予定*
-- **Payments**: Stripe Checkout / Webhooks - *予定*
+- **Database**: Cloudflare D1 (D1 Manager / SQL)
+- **Payments**: Payments: Stripe Checkout / Webhooks (Idempotent Implementation)
 
 ## 📂 ドキュメント体系 (doc/)
 実装と同等にドキュメンテーションを重視しています。ファイル名は英語、内容は日本語で記述します。
 
-| ファイル名 | ステータス | 内容 |
-| :--- | :--- | :--- |
-| `00_project_master_plan.md` | 作成済 | 次世代基盤移行および決済内製化の全体計画書 |
-| `01_system_architecture.md` | 作成済 | システム構造、ディレクトリ設計、データフロー等の定義 |
-| `02_implementation_detail.md` | 作成済 | 死活監視、自動更新、各コンポーネントの挙動等の詳細仕様 |
-| `03_stripe_integration_guide.md` | 未作成 | 決済フローとセキュリティ、PCI DSS 準拠に関する設計 |
-| `11_phase1_completion_report.md` | 作成済 | **基盤構築および本番ドメイン移行完了報告書** |
-| `90_development_log.md` | **更新中** | **開発・検証の作業記録、デバッグログ（内部用）** |
+| ファイル名                         | 内容                                                         |
+|----------------------------------|--------------------------------------------------------------|
+| `00_project_master_plan.md`      | 次世代基盤移行および決済内製化の全体計画書                   |
+| `00-2_project_reserve_plan.md`   | 【新規】 v1.8 予約決済基盤の「正典」設計図                    |
+| `01_system_architecture.md`      | システム構造、ディレクトリ設計、データフロー等の定義         |
+| `02_implementation_detail.md`    | 死活監視、自動更新、各コンポーネントの挙動等の詳細仕様       |
+| `03_stripe_integration_guide.md` | 決済フローとセキュリティ、PCI DSS 準拠に関する設計           |
+| `11_phase1_completion_report.md` | **基盤構築および本番ドメイン移行完了報告書**                 |
+| `90_development_log.md`          | **開発・検証の作業記録、デバッグログ（内部用）**             |
 
 ## 🚀 開発ロードマップ
 
@@ -64,7 +68,8 @@
 ### Phase 2: 公式HP改善 & サービス実装 (Current)
 - [x] プレビューURL（*.workers.dev）を活用した安全な検証フローの運用
 - [x] アーキテクチャの刷新（renderer.tsx / info.ts の導入）
-- [ ] プラン一覧ページ（`/services`）の構築
+- [ ] プラン一覧ページ（`/services`）の動的表示実装
+- [ ] D1 による予約枠の仮確保・在庫管理ロジックの実装
 - [ ] Stripe Checkout による決済ボタンの実装とテスト
 - [ ] メール送信のテスト(予約確認、決済確認)
 
