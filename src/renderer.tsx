@@ -2,81 +2,108 @@
  * src/renderer.tsx
  * 【全ページ共通の額縁（レイアウト・レンダラー）】
  * * このファイルは、全ページの <html>, <head>, <body> タグを管理します。
- * 各ページ（Top, Services 等）の中身を「共通の枠」で包んで出力する役割を持ちます。
+ * 各ページの中身を「共通の枠」で包んで出力する役割を持ちます。
  */
 
 import { jsxRenderer } from 'hono/jsx-renderer'
 import { Link, ViteClient } from 'vite-ssr-components/hono'
+import { BUSINESS_INFO } from './constants/info' // 情報源をインポート
 
 /**
  * 1. 型の拡張（TypeScript 用）
  * Hono の標準機能に「タイトル」や「説明文」を渡せるようにルールを追加します。
- * 修正リスク：ここを削除すると、各ページで title 等を指定した際にコンパイルエラーが発生します。
  */
 declare module 'hono' {
   interface ContextRenderer {
     (
-      children: any,      // ページの中身（JSX）
+      children: any,
       props: {
-        title?: string       // ページタイトル（任意）
-        description?: string // ページ説明文（任意）
-        ogImage?: string     // SNS共有用画像（任意）
-        canonical?: string   // 正規URL（任意）
+        title?: string
+        description?: string
+        ogImage?: string
+        canonical?: string
       }
-    ): any // 実行環境による型の不一致を防ぐため any を指定
+    ): any
   }
 }
 
 /**
  * 2. 共通レンダラー本体
- * 全ページで共有される HTML 構造を定義します。
  */
 export const renderer = jsxRenderer(({ children, title, description, ogImage, canonical }) => {
   
-  // --- サイト全体の基本設定（Single Source of Truth への移行準備） ---
-  // 修正ポイント：サイト名や共通説明文を変更したい場合はここを書き換えます。
-  const siteName = "清善 泰賀 | Taiga Shizen Official"
-  const defaultDesc = "自然科学と数理モデルを基盤に、経営の盲点を外側から観測する個別診断を提供。"
+  // --- 基本設定の同期 ---
+  const siteName = BUSINESS_INFO.brandName
+  const defaultDesc = BUSINESS_INFO.defaultDesc
+  const tagline = BUSINESS_INFO.tagline
   const defaultOgImage = "https://shizentaiga.com/images/og-p.webp"
   const baseUrl = "https://shizentaiga.com"
 
   return (
     <html lang="ja">
       <head>
-        {/* 基本のメタタグ */}
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         
-        {/* SEO・タイトル管理 
-          論理：個別ページで title が指定されていれば「ページ名 | サイト名」とし、
-          なければ「サイト名」のみを表示します。
-        */}
+        {/* SEO・タイトル管理 */}
         <title>{title ? `${title} | ${siteName}` : siteName}</title>
         <meta name="description" content={description || defaultDesc} />
         <link rel="canonical" href={canonical || baseUrl} />
 
-        {/* SNS (OGP) 設定
-          修正リスク：og:type を "article" 等に変える場合は、ページごとの条件分岐が必要です。
-        */}
+        {/* SNS (OGP) 設定 */}
         <meta property="og:title" content={title || siteName} />
-        <meta property="og:description" content={description || defaultDesc} />
+        <meta property="og:description" content={description || tagline} />
         <meta property="og:image" content={ogImage || defaultOgImage} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
 
-        {/* 外部アセット読み込み
-          修正ポイント：新しい CSS ファイルを追加する場合は <Link> を増やします。
-          リスク：ViteClient を削除すると、開発時の自動更新（ホットリロード）が止まります。
+        {/* 構造化データ (JSON-LD) 
+            元の index.tsx から移植。情報の源泉 (info.ts) と同期させています。
         */}
+        <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Person",
+              "@id": `${baseUrl}/#person`,
+              "name": "清善 泰賀",
+              "alternateName": "Taiga Shizen",
+              "url": baseUrl,
+              "image": `${baseUrl}/images/profile.webp`,
+              "jobTitle": ["経営コンサルタント", "著述家"],
+              "description": defaultDesc,
+              "knowsAbout": ["Management", "Automation", "Applied Mathematics"],
+              "sameAs": [
+                BUSINESS_INFO.links.note,
+                BUSINESS_INFO.links.qiita,
+                BUSINESS_INFO.links.x,
+                BUSINESS_INFO.links.linkedin,
+                BUSINESS_INFO.links.instagram,
+                BUSINESS_INFO.links.listen
+              ]
+            },
+            {
+              "@type": "WebSite",
+              "@id": `${baseUrl}/#website`,
+              "url": baseUrl,
+              "name": "清善泰賀 公式ホームページ",
+              "publisher": { "@id": `${baseUrl}/#person` },
+              "inLanguage": "ja"
+            }
+          ]
+        })}
+        </script>
+
         <ViteClient />
         <Link href="/src/style.css" rel="stylesheet" />
-        <link rel="icon" href="/favicon.ico" />
+        
+        {/* 各種アイコン設定 */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body>
-        {/* メインコンテンツの挿入位置
-          修正ポイント：全ページ共通の「背景色」や「枠組み」を変えたい場合は 
-          container クラスのスタイル（style.css）またはここの div 構造を変更します。
-        */}
         <div className="container">
           {children}
         </div>
@@ -84,3 +111,10 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
     </html>
   )
 })
+
+/**
+ * 💡 メンテナンス・マニュアル
+ * 1. 共通設定の変更: info.ts を変更してください。このファイルが自動で読み込みます。
+ * 2. 新しいアイコンの追加: <head> 内に <link> を追加してください。
+ * 3. JSON-LD の変更: script タグ内の JSON 構造を修正してください。
+ */
