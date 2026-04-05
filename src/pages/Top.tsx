@@ -54,3 +54,16 @@ export const Top = () => {
     </footer>
   `
 }
+
+/**
+ * 💡 開発者向け実装メモ (Maintenance Notes)
+ * * 1. 画像最適化 (LCP/Core Web Vitals):
+ * - profile-image-area に aspect-ratio を指定し、CLP（レイアウトシフト）を防止。
+ * - fetchpriority="high" を付与し、メインビジュアルの早期描画をブラウザに指示。
+ * * 2. リンク戦略:
+ * - 拡散防止のため、外部リンクは target="_blank" と rel="noopener" をセットで運用。
+ * - note/Qiita にトラフィックを絞り、ドメインの権威性とコンサルタントとしての専門性を裏付け。
+ * * 3. コンプライアンスと保守:
+ * - 決済を伴うサービス提供において、Footer 内の /legal 導線は法的に必須。
+ * - info.ts への移行が完了するまでは、このファイル内の文言は手動保守を行う。
+ */
