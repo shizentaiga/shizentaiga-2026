@@ -64,3 +64,17 @@ npx vitest       # ファイル変更を監視して継続実行
 |---|---|
 | `"DB not found"` | `wrangler.toml` の `[[d1_databases]]` の `binding` 名が `DB` になっているか確認 |
 | 型エラー（赤波線） | エディタ上の表示のみであれば実行に影響しないため、まず `npx vitest` を強行してパスするか確認 |
+
+
+---
+
+## 5. テスト結果メモ
+①
+ ✓ src/test/queries.test.ts (1 test) 641ms
+   ✓ Queries Direct Test (D1 Integration) (1)
+     ✓ 【正常系】データ取得の整合性：戻り値が配列であることを確認  640ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  15:25:36
+   Duration  1.62s (transform 207ms, setup 0ms, import 836ms, tests 641ms, environment 0ms)
