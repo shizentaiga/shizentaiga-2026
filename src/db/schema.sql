@@ -2,10 +2,10 @@
 -- 04_DATABASE_SCHEMA (Aletheia Core)
 -- ==========================================
 -- [実行コマンド / ローカル環境]
--- npx wrangler d1 execute <DATABASE_NAME> --local --file=./src/db/schema.sql
+-- npx wrangler d1 execute shizentaiga-db --local --file=./src/db/schema.sql
 --
 -- [実行コマンド / 本番環境]
--- npx wrangler d1 execute <DATABASE_NAME> --remote --file=./src/db/schema.sql
+-- npx wrangler d1 execute shizentaiga-db --remote --file=./src/db/schema.sql
 -- ==========================================
 
 -- 予約枠管理メインテーブル
