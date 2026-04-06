@@ -6,6 +6,15 @@
  */
 
 export const BUSINESS_INFO = {
+    // 予約可能枠（手動更新セクション）
+  // ⭐️Googleカレンダー連携までの暫定運用。ここを書き換えてデプロイしてください。
+  availableSlots: [
+    { date: "2026-04-18", time: "10:00 - 12:00", status: "available" },
+    { date: "2026-04-25", time: "10:00 - 12:00", status: "available" },
+    { date: "2026-05-09", time: "10:00 - 12:00", status: "available" },
+    { date: "2026-05-23", time: "10:00 - 12:00", status: "available" },
+  ],
+
   // 基本情報
   brandName: "清善 泰賀 | Taiga Shizen Official",
   sellerName: "善幽（代表：菊池 大輔）",
@@ -56,13 +65,6 @@ export const BUSINESS_INFO = {
       taxIncluded: true,
       suffix: "〜"
     }
-  ],
-
-  // 予約可能枠（手動更新セクション）
-  // Googleカレンダー連携までの暫定運用。ここを書き換えてデプロイしてください。
-  availableSlots: [
-    { date: "2026-04-18", time: "10:00 - 12:00", status: "available" },
-    { date: "2026-04-25", time: "10:00 - 12:00", status: "available" },
   ],
 
   // 法務・ポリシー関連の定型文
