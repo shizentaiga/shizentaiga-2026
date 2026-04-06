@@ -1,21 +1,28 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "shizentaiga-2026",
-  "main": "./src/index.tsx",
-  "compatibility_date": "2026-04-01",
-  "workers_dev": true,
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS"
-  },
-  "routes": [
-    {
-      "pattern": "shizentaiga.com",
-      "custom_domain": true
-    }
-  ],
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "shizentaiga-2026",
+	"main": "./src/index.tsx",
+	"compatibility_date": "2026-04-01",
+	"workers_dev": true,
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS"
+	},
+	"routes": [
+		{
+			"pattern": "shizentaiga.com",
+			"custom_domain": true
+		}
+	],
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "shizentaiga-db",
+			"database_id": "0c5a2e2a-7c62-4e5e-b2a7-7fed50040126"
+		}
+	]
 }
