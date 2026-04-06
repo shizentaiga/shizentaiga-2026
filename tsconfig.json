@@ -8,8 +8,18 @@
     "lib": [
       "ESNext"
     ],
-    "types": ["vite/client"],
+    "types": [
+      "@cloudflare/workers-types",
+      "@cloudflare/vitest-pool-workers",
+      "vite/client"
+    ],
     "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
+    "jsxImportSource": "hono/jsx",
+    "resolveJsonModule": true,
+    "allowJs": true
   },
+  "include": [
+    "src/**/*",
+    "test/**/*"
+  ]
 }

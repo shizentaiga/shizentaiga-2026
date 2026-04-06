@@ -138,3 +138,110 @@ export async function checkEventProcessed(
 |---|---|
 | 時刻生成 | `now` 引数には必ず `Math.floor(Date.now() / 1000)` を渡す |
 | エラーハンドリング | `db.prepare().run()` は例外を投げる可能性があるため、呼び出し側（Honoハンドラ等）で `try-catch` すること |
+
+---
+
+## 4. 単体テスト用メモ
+
+1. 必要なパッケージのインストール
+プロジェクトのルートで以下を実行します。
+
+Bash
+npm install -D vitest @cloudflare/vitest-pool-workers
+
+
+1. vitest.config.ts の作成
+プロジェクトのルートディレクトリに配置し、WranglerのコンテキストをVitestに認識させます。
+
+TypeScript
+import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        wrangler: { configPath: './wrangler.toml' },
+      },
+    },
+  },
+});
+
+2. queries.test.ts の統合実装
+格納フォルダ(テスト専用)：src/test/queries.test.ts
+格納フォルダ(本番用SQL)：src/db/schema.sql
+格納フォルダ(単体テスト用プログラム)：src/db/queries.ts
+
+schema.sql を動的に読み込み、「成功」と「防御（失敗）」の両面を検証する構成です。
+
+TypeScript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { getPlatformProxy } from 'wrangler';
+import fs from 'node:fs';
+import path from 'node:path';
+import { getSlotsByDate, tryLockSlot } from './queries';
+
+describe('Queries Integration Tests with Schema Sync', () => {
+  let db: D1Database;
+
+  beforeEach(async () => {
+    const proxy = await getPlatformProxy<{ DB: D1Database }>();
+    db = proxy.env.DB;
+
+    // 1. 本番の schema.sql を読み込んでテーブル構造を同期
+    const schemaPath = path.resolve(__dirname, '../db/schema.sql'); // ⭐️パスは「schema.sql」のある場所を指定
+    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+    
+    // セミコロンで分割して実行（コメントや空行を除去）
+    const setupQueries = schemaSql
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    for (const query of setupQueries) {
+      await db.prepare(query).run();
+    }
+
+    // 2. テストデータの初期化
+    await db.prepare(`DELETE FROM slots`).run();
+  });
+
+  it('【正常系】期限切れのpending枠がavailableとして取得できるか', async () => {
+    // 過去の時刻で期限切れデータを投入
+    await db.prepare(`
+      INSERT INTO slots (tenant_id, id, date_string, start_at_unix, status, expires_at) 
+      VALUES ('T1', 'slot_expired', '2026-04-06', 1712386800, 'pending', 1000)
+    `).run();
+
+    const results = await getSlotsByDate(db, 'T1', '2026-04-06');
+    
+    expect(results.length).toBe(1);
+    expect(results[0].status).toBe('available'); // 救済ロジックの検証
+  });
+
+  it('【正常系】期限切れ枠をtryLockSlotで上書き奪取できるか', async () => {
+    await db.prepare(`
+      INSERT INTO slots (tenant_id, id, date_string, start_at_unix, status, expires_at) 
+      VALUES ('T1', 'slot_takeover', '2026-04-06', 1712386800, 'pending', 1000)
+    `).run();
+
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = now + 2100;
+
+    const success = await tryLockSlot(db, 'slot_takeover', 'T1', expiresAt, now);
+    expect(success).toBe(true);
+  });
+
+  it('【防御系】確定済み(booked)の枠に対してはtryLockSlotが失敗するか', async () => {
+    // すでに予約確定済みのデータを投入
+    await db.prepare(`
+      INSERT INTO slots (tenant_id, id, date_string, start_at_unix, status, expires_at) 
+      VALUES ('T1', 'slot_booked', '2026-04-06', 1712386800, 'booked', NULL)
+    `).run();
+
+    const now = Math.floor(Date.now() / 1000);
+    const success = await tryLockSlot(db, 'slot_booked', 'T1', now + 2100, now);
+    
+    // ガードレールが機能していれば false になるはず
+    expect(success).toBe(false);
+  });
+});
