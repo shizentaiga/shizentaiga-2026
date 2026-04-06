@@ -2,22 +2,20 @@ import { D1Database } from '@cloudflare/workers-types';
 
 /**
  * ====================================================================
- * Aletheia Domain Models: Slot Interface
+ * Shizentaiga Domain Models: Slot Interface
  * ====================================================================
- * 予約枠の状態とライフサイクルを定義する中心的な型定義。
- * すべての時刻データは「10桁の Unix Timestamp (秒単位)」で統一する。
  */
 export interface Slot {
-  tenant_id:     string;                     // 事業者（テナント）を識別する一意識別子
-  id:            string;                     // 枠ID（時系列ソート可能なULIDを推奨）
-  date_string:   string;                     // 表示・検索用日付 (JST基準: 'YYYY-MM-DD')
-  start_at_unix: number;                     // 予約開始時刻 (Unix Timestamp 10桁)
-  slot_duration: number;                     // 枠の所要時間（分単位）
-  status:        'available' | 'pending' | 'booked' | 'error'; // 状態遷移管理
-  expires_at:    number | null;              // 仮確保(pending)の有効期限（期限切れはCronで回収）
-  retry_count:   number;                     // 決済失敗時等の自動リトライ試行回数
-  last_retry_at: number | null;              // 最後に照合を試みた時刻
-  updated_at:    number;                     // レコードの最終更新時刻（証跡管理用）
+  tenant_id:     string;                     // 事業者識別子
+  id:            string;                     // 枠ID
+  date_string:   string;                     // 'YYYY-MM-DD'
+  start_at_unix: number;                     // 開始時刻 (10桁)
+  slot_duration: number;                     // 所要時間（分）
+  status:        'available' | 'pending' | 'booked' | 'error';
+  expires_at:    number | null;              // 仮確保有効期限
+  retry_count:   number;
+  last_retry_at: number | null;
+  updated_at:    number;                     // 最終更新時刻
 }
 
 /**
@@ -28,114 +26,127 @@ export interface Slot {
 
 /**
  * 1. 指定日の予約枠一覧を取得 (getSlotsByDate)
- * * 特定のテナントおよび日付に紐づくすべてのスロットを時系列順に抽出する。
- * 指摘事項反映：.all<Slot>() により D1 の戻り値を型安全にキャストしている。
+ * * 期限切れ pending を available とみなす「動的救済ロジック」を内包。
  */
 export async function getSlotsByDate(
-  db:         D1Database,                    // D1 データベースインスタンス
-  tenantId:   string,                        // テナント識別子
-  dateString: string                         // 取得対象日 ('YYYY-MM-DD')
+  db:         D1Database,
+  tenantId:   string,
+  dateString: string
 ): Promise<Slot[]> {
-  const sql = `
-    SELECT * FROM slots
-    WHERE tenant_id = ?
-      AND date_string = ?
-    ORDER BY start_at_unix ASC;              -- 常にカレンダー表示順で取得
-  `;
-  
-  const { results } = await db
-    .prepare(sql)
-    .bind(tenantId, dateString)
-    .all<Slot>();                            // D1内部で Slot 型として結果を保持
-    
-  return results || [];
+  const sql = `SELECT * FROM slots WHERE tenant_id = ? AND date_string = ? ORDER BY start_at_unix ASC`;
+  const now = Math.floor(Date.now() / 1000);
+
+  const { results } = await db.prepare(sql).bind(tenantId, dateString).all<Slot>();
+  if (!results?.length) return [];
+
+  return results.map(slot => {
+    const isExpired = slot.status === 'pending' && slot.expires_at && slot.expires_at < now;
+    return isExpired ? { ...slot, status: 'available' as const } : slot;
+  });
 }
 
 /**
  * 2. アトミックな仮確保 (tryLockSlot)
- * * 二重予約を物理的に防ぐための「楽観的ロック（Soft Lock）」ロジック。
- * status='available' であることを WHERE 句の必須条件にすることで、
- * タッチの差で他人に更新された場合は changes === 0 となり、確実に弾くことができる。
+ * * 指摘事項反映：
+ * - status='available' または「期限切れの pending」を更新対象とする。
+ * - これにより表示上の空き状況と、確保ロジックを完全に一致させている。
  */
 export async function tryLockSlot(
-  db:         D1Database,
-  id:         string,                        // 対象枠のID
-  tenantId:   string,                        // テナント識別子
-  expiresAt:  number,                        // 仮確保の有効期限 (現在時刻 + 35分)
-  now:        number                         // 現在時刻 (Updated_at用)
+  db:          D1Database,
+  id:          string,
+  tenantId:    string,
+  expiresAt:   number,                       // 新しい仮確保期限 (now + 35min)
+  now:         number                        // 判定用および Updated_at 用
 ): Promise<boolean> {
   const sql = `
-    UPDATE slots
-    SET
-      status     = 'pending',                -- 状態を「仮確保」に移行
-      expires_at = ?,                        -- 決済完了までの猶予時間を設定
-      updated_at = ?                         -- 更新時刻を記録
-    WHERE
-      id         = ?
-      AND tenant_id = ?
-      AND status = 'available';              -- 【重要】空き状態の場合のみ更新を許可
+    UPDATE slots 
+    SET status = 'pending', expires_at = ?, updated_at = ? 
+    WHERE id = ? AND tenant_id = ? 
+      AND (status = 'available' OR (status = 'pending' AND expires_at < ?))
   `;
 
-  const result = await db
-    .prepare(sql)
-    .bind(expiresAt, now, id, tenantId)
-    .run();
-
-  // 1行更新されていればロック成功。0行なら他者が先に確保したと判定。
+  // 最後の引数(now)は WHERE 句内の expires_at < ? の判定に使用
+  const result = await db.prepare(sql).bind(expiresAt, now, id, tenantId, now).run();
   return result.meta.changes === 1;
 }
 
 /**
  * 3. 予約の確定 (finalizeBooking)
- * * 決済完了（Stripe等からの通知）を受けて、枠を最終確定状態にする。
- * 証跡管理のため、確定時刻を updated_at に刻み込み、有効期限をクリアする。
  */
 export async function finalizeBooking(
-  db:         D1Database,
-  id:         string,
-  tenantId:   string,
-  now:        number                         // 確定時刻
+  db:          D1Database,
+  id:          string,
+  tenantId:    string,
+  now:         number
 ): Promise<boolean> {
   const sql = `
-    UPDATE slots
-    SET
-      status     = 'booked',                 -- 状態を「確定」に移行
-      expires_at = NULL,                     -- 仮確保の期限設定を解除
-      updated_at = ?                         -- 確定時刻を証跡として保存
-    WHERE
-      id         = ?
-      AND tenant_id = ?
-      AND status = 'pending';                -- 仮確保中(pending)の枠のみを対象とする
+    UPDATE slots 
+    SET status = 'booked', expires_at = NULL, updated_at = ? 
+    WHERE id = ? AND tenant_id = ? AND status = 'pending'
   `;
 
-  const result = await db
-    .prepare(sql)
-    .bind(now, id, tenantId)
-    .run();
-
+  const result = await db.prepare(sql).bind(now, id, tenantId).run();
   return result.meta.changes === 1;
 }
 
 /**
  * 4. 決済重複チェック (checkEventProcessed)
- * * 外部通知（Webhook）の二重受信による多重処理を防止する「べき等性」チェック関数。
- * processed_events テーブルに記録があるか否かを確認する。
+ * * 指摘事項反映：型安全のため .first<{ event_id: string }>() を明示的に指定。
  */
 export async function checkEventProcessed(
-  db:         D1Database,
-  eventId:    string,                        // Stripe等のイベントID
-  tenantId:   string                         // テナント識別子
+  db:          D1Database,
+  eventId:     string,
+  tenantId:    string
+): Promise<boolean> {
+  const sql = `SELECT event_id FROM processed_events WHERE event_id = ? AND tenant_id = ?`;
+  const result = await db.prepare(sql).bind(eventId, tenantId).first<{ event_id: string }>();
+  return result !== null;
+}
+
+/**
+ * 5. 予約枠の解放 (releaseSlot)
+ */
+export async function releaseSlot(
+  db:          D1Database,
+  id:          string,
+  tenantId:    string,
+  now:         number
 ): Promise<boolean> {
   const sql = `
-    SELECT event_id FROM processed_events
-    WHERE event_id = ?
-      AND tenant_id = ?;
+    UPDATE slots 
+    SET status = 'available', expires_at = NULL, updated_at = ? 
+    WHERE id = ? AND tenant_id = ? AND status = 'pending'
   `;
-  
-  const result = await db
-    .prepare(sql)
-    .bind(eventId, tenantId)
-    .first();
-    
-  return !!result;                           // レコードが存在すれば true (処理済み)
+
+  const result = await db.prepare(sql).bind(now, id, tenantId).run();
+  return result.meta.changes === 1;
 }
+
+/**
+ * ====================================================================
+ * 【次期開発者・メンテナンス担当者への申し送り事項】
+ * ====================================================================
+ * * 1. 設計思想：動的な「期限切れ枠」の救済ロジッ
+ * 本ソースコードは、フロントエンドの表示（getSlotsByDate）と、DBの更新（tryLockSlot）
+ * において「期限切れの pending 枠を available とみなす」という動的な救済ロジックを
+ * 共通して内包しています。これにより、Cron による物理的な状態回収（5分間隔等）
+ * の隙間で発生する「予約の機会損失」をゼロにしています。
+ * * 2. 不具合時の調査ポイント
+ * - 「表示は空いているが予約できない」場合：
+ * getSlotsByDate 内の now (Date.now()) と、tryLockSlot に渡される now の
+ * 算出ロジック、あるいは DB サーバー側のシステム時刻に乖離がないか確認してください。
+ * - 状態遷移の不整合：
+ * 本システムは status = 'available' / 'pending' / 'booked' のリテラル型に
+ * 厳格に依存しています。TypeScript エラーを回避するために `as const` を
+ * 多用している箇所があるため、型の拡張時は注意が必要です。
+ * * 3. パフォーマンスとスケーラビリティ
+ * - D1 へのクエリは、バインド引数の順序ミスが最も致命的なバグを生みます。
+ * 特に tryLockSlot の WHERE 句は OR 条件を含み複雑化しているため、
+ * SQL 文の ? の数と .bind() の引数の数が 1:1 で一致しているか常に確認してください。
+ * - try/catch は「例外を上位（Hono ハンドラ等）へ正しく投げて一括管理する」方針のため、
+ * 本層ではあえて実装していません。
+ * * 4. 改修時の注意
+ * ビジネスルールが変更（例：仮確保を35分から変更するなど）される場合、
+ * 呼び出し側のロジックだけでなく、本クエリ層での「期限判定（expires_at < now）」
+ * が意図した挙動になるよう、DB 上の Unix Timestamp（10桁）の整合性を維持してください。
+ */
