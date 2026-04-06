@@ -1,10 +1,12 @@
 /**
  * src/pages/Services.tsx
  * サービスプラン一覧、最新の予約状況、および申し込み導線を1ページに集約したコンポーネントです。
+ * デザインパーツを src/components/ に委譲し、ここでは構造とデータの流し込みに専念します。
  */
 
 import { html } from 'hono/html'
 import { BUSINESS_INFO } from '../constants/info'
+import { ServiceCard } from '../components/ServiceCard' // 分離したコンポーネント
 
 export const Services = () => {
   return html`
@@ -16,18 +18,15 @@ export const Services = () => {
       <section id="plans">
         <h2>Service Plans</h2>
         <div class="services-container">
-          ${BUSINESS_INFO.services.map(s => html`
-            <div class="service-item" style="border-bottom: 1px solid #eee; padding: 40px 0;">
-              <h3 style="font-size: 1.4rem; margin-bottom: 10px;">${s.name}</h3>
-              <p style="color: #555; margin-bottom: 15px; line-height: 1.6;">${s.description}</p>
-              <p style="font-size: 1.1rem; letter-spacing: 0.05rem;">
-                <strong>¥${s.price.toLocaleString()}</strong> 
-                <span style="font-size: 0.9rem; color: #777;">
-                  (${s.taxIncluded ? '税込' : '税別'}) / ${s.duration}${s.suffix || ''}
-                </span>
-              </p>
-            </div>
-          `)}
+          ${BUSINESS_INFO.services.map(s => ServiceCard({
+            id: s.id || 'plan-default',
+            name: s.name,
+            description: s.description,
+            price: s.price,
+            taxText: s.taxIncluded ? '税込' : '税別',
+            durationText: `${s.duration}${s.suffix || ''}`,
+            isAvailable: true // ロジックに応じて動的に変更可能
+          }))}
         </div>
       </section>
 
