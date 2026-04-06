@@ -9,10 +9,10 @@ export const BUSINESS_INFO = {
     // 予約可能枠（手動更新セクション）
   // ⭐️Googleカレンダー連携までの暫定運用。ここを書き換えてデプロイしてください。
   availableSlots: [
-    { date: "2026-04-18", time: "10:00 - 12:00", status: "available" },
-    { date: "2026-04-25", time: "10:00 - 12:00", status: "available" },
-    { date: "2026-05-09", time: "10:00 - 12:00", status: "available" },
-    { date: "2026-05-23", time: "10:00 - 12:00", status: "available" },
+    { date: "2026-04-18", time: "10:00 - 13:00", status: "available" },
+    { date: "2026-04-25", time: "10:00 - 13:00", status: "available" },
+    { date: "2026-05-09", time: "10:00 - 13:00", status: "available" },
+    { date: "2026-05-23", time: "10:00 - 13:00", status: "available" },
   ],
 
   // 基本情報
@@ -40,19 +40,19 @@ export const BUSINESS_INFO = {
   services: [
     {
       id: "individualDiagnosis",
-      name: "経営の盲点を外側から観測する個別診断",
+      name: "経営コンサルティング",
       duration: "90分",
       price: 49500,
-      description: "経営の盲点を外側から観測し、意思決定の精度を高めます。",
+      description: "課題解決に向けた90分の戦略セッション",
       taxIncluded: true,
       suffix: "" // ← これを追加
     },
     {
       id: "fundingPhase0",
-      name: "資金調達の構造診断【Phase 0】",
+      name: "資金調達プラン 初回相談",
       duration: "60分",
       price: 11000,
-      description: "融資・補助金活用など、財務戦略の第一歩を具体化します。",
+      description: "融資・資金繰りに関する専門的なアドバイス",
       taxIncluded: true,
       suffix: "" // ← これを追加
     },
@@ -61,9 +61,9 @@ export const BUSINESS_INFO = {
       name: "顧問契約プラン",
       duration: "1ヶ月〜",
       price: 220000,
-      description: "継続的な伴走支援により、組織の構造的課題を解決します。",
+      description: "継続的な伴走支援により、組織の構造的課題を解決",
       taxIncluded: true,
-      suffix: "〜"
+      suffix: ""
     }
   ],
 
