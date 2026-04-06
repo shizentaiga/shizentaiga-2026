@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Flow Concept - Shizen Taiga</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a1a1a;
+            --accent: #2c5282; /* 落ち着いたネイビー系 */
+            --bg: #f4f7f6;
+            --card-bg: #ffffff;
+            --border: #d1d5db;
+            --text-main: #333;
+            --text-sub: #555; /* PageSpeed Insight対策：コントラスト確保 */
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.7;
+            margin: 0;
+            padding-bottom: 120px;
+        }
+
+        header {
+            background: var(--card-bg);
+            padding: 30px 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .container {
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        section {
+            margin-bottom: 30px;
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 1.4rem;
+            margin-top: 0;
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        /* Plan Selection */
+        .plan-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .plan-item {
+            border: 1px solid var(--border);
+            padding: 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .plan-item:hover {
+            border-color: var(--accent);
+            background-color: #f8fafc;
+        }
+
+        .plan-item.selected {
+            border-color: var(--accent);
+            border-width: 2px;
+            background-color: #eff6ff;
+        }
+
+        .plan-info h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.2rem;
+            color: var(--primary);
+        }
+
+        .plan-info p {
+            margin: 0;
+            color: var(--text-sub);
+            font-size: 0.95rem;
+        }
+
+        .plan-price {
+            text-align: right;
+            font-weight: bold;
+            font-size: 1.25rem;
+            color: var(--primary);
+        }
+
+        /* Staff Section */
+        .staff-profile {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            padding: 10px;
+        }
+
+        .staff-img {
+            width: 100px;
+            height: 100px;
+            background: #eee;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: #999;
+            border: 1px solid var(--border);
+        }
+
+        .staff-detail strong {
+            display: block;
+            font-size: 1.3rem;
+            margin-bottom: 5px;
+        }
+
+        .staff-detail p {
+            margin: 0;
+            color: var(--text-sub);
+            font-size: 0.9rem;
+        }
+
+        /* Calendar Layout */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .calendar-grid { grid-template-columns: 1fr; }
+        }
+
+        .time-slot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .time-btn {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid var(--border);
+            background: #fff;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .time-btn.selected {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .special-consult {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f1f5f9;
+            border-left: 4px solid var(--accent);
+            font-size: 0.9rem;
+            color: var(--text-sub);
+        }
+
+        /* Sticky Footer */
+        .footer-sticky {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background: var(--primary);
+            color: #fff;
+            padding: 20px 0;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+        }
+
+        .footer-content {
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .book-now-btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: opacity 0.2s;
+        }
+
+        .book-now-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1 style="margin:0; font-size: 1.5rem; letter-spacing: 0.05rem;">予約申し込み</h1>
+</header>
+
+<div class="container">
+    <section>
+        <h2>プランの選択</h2>
+        <div class="plan-list">
+            <div class="plan-item selected">
+                <div class="plan-info">
+                    <h3>経営コンサルティング</h3>
+                    <p>課題解決に向けた90分の戦略セッション</p>
+                </div>
+                <div class="plan-price">¥49,500 <span style="font-size:0.8rem; font-weight:normal;">(税込) / 90分</span></div>
+            </div>
+            <div class="plan-item">
+                <div class="plan-info">
+                    <h3>資金調達プラン 初回相談</h3>
+                    <p>融資・資金繰りに関する専門的なアドバイス</p>
+                </div>
+                <div class="plan-price">¥11,000 <span style="font-size:0.8rem; font-weight:normal;">(税込) / 60分</span></div>
+            </div>
+            <div class="plan-item">
+                <div class="plan-info">
+                    <h3>顧問契約（月額）</h3>
+                    <p>継続的な事業成長をサポートする伴走型支援</p>
+                </div>
+                <div class="plan-price">¥220,000 <span style="font-size:0.8rem; font-weight:normal;">(税込) / 月</span></div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <h2>担当コンサルタント</h2>
+        <div class="staff-profile">
+            <div class="staff-img"><i class="fa-solid fa-user-tie"></i></div>
+            <div class="staff-detail">
+                <strong>清善 泰賀</strong>
+                <p>Management Consultant</p>
+                <p style="margin-top:5px; font-size:0.85rem;">戦略策定から資金調達まで、実戦的なソリューションを提供します。</p>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <h2>希望日時の選択</h2>
+        <div class="calendar-grid">
+            <div style="border: 1px solid var(--border); padding: 20px; border-radius:4px; text-align:center;">
+                <div style="margin-bottom:15px; font-weight:bold; color:var(--primary);">2026年 4月</div>
+                <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; font-size:0.85rem;">
+                    <div style="color:#d9534f">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div style="color:var(--accent)">土</div>
+                    <div style="opacity:0.3">29</div><div style="opacity:0.3">30</div><div>1</div><div>2</div><div>3</div>
+                    <div style="background:var(--accent); color:#fff; border-radius:2px; cursor:pointer;">4</div><div style="background:#f1f5f9;">5</div>
+                    <div>6</div><div>7</div><div>8</div><div>9</div><div>10</div>
+                    <div style="background:var(--accent); color:#fff; border-radius:2px; cursor:pointer;">11</div><div style="background:#f1f5f9;">12</div>
+                    <div>13</div><div>14</div><div>15</div><div>16</div><div>17</div>
+                    <div style="background:var(--accent); color:#fff; border-radius:2px; cursor:pointer;">18</div><div style="background:#f1f5f9;">19</div>
+                </div>
+            </div>
+            <div class="time-slot-list">
+                <p style="margin-top:0; font-weight:bold; color:var(--text-sub);">選択した日: 4月11日(土)</p>
+                <button class="time-btn selected">10:00 - 12:00</button>
+                <button class="time-btn" style="opacity:0.5; cursor:not-allowed;">13:00 - 15:00 (満席)</button>
+            </div>
+        </div>
+
+        <div class="special-consult">
+            <i class="fa-solid fa-calendar-check" style="margin-right:8px;"></i>
+            <strong>不定期・平日相談をご希望の方へ</strong><br>
+            上記以外の日程（平日夜間など）をご希望の場合は、予約確定後のヒアリングシートにて候補日をお知らせいただくか、別途お問い合わせください。
+        </div>
+    </section>
+</div>
+
+<div class="footer-sticky">
+    <div class="footer-content">
+        <div>
+            <div style="font-size:0.85rem; opacity:0.8;">経営コンサルティング / 4月11日 10:00〜</div>
+            <div style="font-size:1.4rem; font-weight:bold;">¥49,500 <span style="font-size:0.9rem; font-weight:normal;">(税込)</span></div>
+        </div>
+        <button class="book-now-btn">
+            内容確認・決済へ <i class="fa-solid fa-arrow-right" style="margin-left:10px;"></i>
+        </button>
+    </div>
+</div>
+
+</body>
+</html>

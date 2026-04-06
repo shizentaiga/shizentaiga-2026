@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Experience Prototype</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a1a1a;
+            --accent: #0066ff;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --border: #e0e0e0;
+            --text-main: #333;
+            --text-sub: #666;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding-bottom: 100px;
+        }
+
+        header {
+            background: var(--card-bg);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        section {
+            margin-bottom: 40px;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            margin-top: 0;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h2 span {
+            background: var(--primary);
+            color: #fff;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 0.8rem;
+        }
+
+        /* 1. Plan Selection */
+        .plan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .plan-card {
+            border: 2px solid var(--border);
+            padding: 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .plan-card:hover {
+            border-color: var(--accent);
+        }
+
+        .plan-card.selected {
+            border-color: var(--accent);
+            background-color: #f0f7ff;
+        }
+
+        .plan-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1rem;
+        }
+
+        .plan-card .price {
+            font-weight: bold;
+            font-size: 1.2rem;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        /* 2. Staff Selection */
+        .staff-flex {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+
+        .staff-card {
+            min-width: 120px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .staff-card img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #eee;
+            margin-bottom: 8px;
+            border: 3px solid transparent;
+        }
+
+        .staff-card.selected img {
+            border-color: var(--accent);
+        }
+
+        /* 3. Calendar & Time */
+        .calendar-layout {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .calendar-layout { grid-template-columns: 1fr; }
+        }
+
+        .mini-calendar {
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .time-slots {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 10px;
+        }
+
+        .time-btn {
+            padding: 10px;
+            border: 1px solid var(--border);
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .time-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .time-btn.selected {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .time-btn.disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Footer Sticky Bar */
+        .footer-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--primary);
+            color: #fff;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .summary-info {
+            font-size: 0.9rem;
+        }
+
+        .book-btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .tag {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            background: #eee;
+            border-radius: 3px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <strong>Consul Booking Flow - Concept Prototype</strong>
+</header>
+
+<div class="container">
+    <section id="step1">
+        <h2><span>1</span> Select Plan</h2>
+        <div class="plan-grid">
+            <div class="plan-card selected" onclick="selectCard(this, 'plan')">
+                <span class="tag">人気</span>
+                <h3>戦略コンサルティング</h3>
+                <span class="price">¥33,000</span>
+                <small>60分 / オンライン</small>
+            </div>
+            <div class="plan-card" onclick="selectCard(this, 'plan')">
+                <h3>スポット相談</h3>
+                <span class="price">¥16,500</span>
+                <small>30分 / オンライン</small>
+            </div>
+            <div class="plan-card" onclick="selectCard(this, 'plan')">
+                <span class="tag">継続</span>
+                <h3>エグゼクティブ伴走</h3>
+                <span class="price">¥110,000</span>
+                <small>月2回 / 120分</small>
+            </div>
+        </div>
+    </section>
+
+    <section id="step2">
+        <h2><span>2</span> Select Staff</h2>
+        <div class="staff-flex">
+            <div class="staff-card selected" onclick="selectCard(this, 'staff')">
+                <img src="https://via.placeholder.com/80?text=A" alt="Staff A">
+                <div><strong>田中 太郎</strong></div>
+                <small>代表 / 戦略担当</small>
+            </div>
+            <div class="staff-card" onclick="selectCard(this, 'staff')">
+                <img src="https://via.placeholder.com/80?text=B" alt="Staff B">
+                <div><strong>佐藤 美咲</strong></div>
+                <small>組織開発担当</small>
+            </div>
+            <div class="staff-card" onclick="selectCard(this, 'staff')">
+                <img src="https://via.placeholder.com/80?text=C" alt="Staff C">
+                <div><strong>指名なし</strong></div>
+                <small>最短日程をご案内</small>
+            </div>
+        </div>
+    </section>
+
+    <section id="step3">
+        <h2><span>3</span> Select Date & Time</h2>
+        <div class="calendar-layout">
+            <div class="mini-calendar">
+                <strong>2026年 4月</strong>
+                <div style="margin-top:15px; display:grid; grid-template-columns: repeat(7, 1fr); gap:5px; font-size:0.8rem;">
+                    <div style="color:red">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div style="color:blue">土</div>
+                    <div style="opacity:0.3">29</div><div style="opacity:0.3">30</div><div>1</div><div>2</div><div>3</div><div style="background:#eee">4</div><div style="background:#eee">5</div>
+                    <div>6</div><div style="background:var(--accent); color:#fff; border-radius:50%">7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div>
+                    <div>13</div><div>14</div><div>15</div><div>16</div><div>17</div><div>18</div><div>19</div>
+                </div>
+            </div>
+            <div class="time-container">
+                <div style="margin-bottom:10px;"><strong>4月7日(火)</strong> の空き時間</div>
+                <div class="time-slots">
+                    <div class="time-btn" onclick="selectCard(this, 'time')">10:00 - 12:00</div>
+                    <div class="time-btn disabled">13:00 - 15:00</div>
+                    <div class="time-btn selected" onclick="selectCard(this, 'time')">15:30 - 17:30</div>
+                    <div class="time-btn" onclick="selectCard(this, 'time')">18:00 - 20:00</div>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-sub); margin-top:15px;">
+                    <i class="fa-solid fa-circle-info"></i> 前後の移動時間を含めた枠を表示しています。
+                </p>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="footer-bar">
+    <div class="summary-info">
+        <div id="summary-text">戦略コンサルティング / 4月7日 15:30〜</div>
+        <strong>合計: ¥33,000 (税込)</strong>
+    </div>
+    <button class="book-btn" onclick="alert('Stripe決済画面へ遷移します（イメージ）')">
+        決済画面へ進む <i class="fa-solid fa-chevron-right"></i>
+    </button>
+</div>
+
+<script>
+    function selectCard(el, type) {
+        // 同じグループの選択を解除
+        const cards = el.parentElement.querySelectorAll(
+            type === 'plan' ? '.plan-card' : 
+            type === 'staff' ? '.staff-card' : '.time-btn'
+        );
+        cards.forEach(c => c.classList.remove('selected'));
+        
+        // 選択状態にする
+        el.classList.add('selected');
+    }
+</script>
+
+</body>
+</html>
