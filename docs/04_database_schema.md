@@ -85,7 +85,9 @@ CREATE TABLE IF NOT EXISTS processed_events (
     tenant_id    TEXT    NOT NULL,         -- テナントID
     processed_at INTEGER NOT NULL          -- 処理日時（秒単位）
 );
+```
 
+---
 
 ## 5. 運用および実装上の留意事項
 
