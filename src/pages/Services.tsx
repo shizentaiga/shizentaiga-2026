@@ -33,7 +33,7 @@ export const Services = () => {
 
       <section id="reservation" style="margin-top: 60px;">
         <h2>Available Slots</h2>
-        <p style="font-size: 0.9rem; color: #666; margin-bottom: 25px;">
+        <p style="font-size: 0.9rem; color: #555; margin-bottom: 25px;">
           ※現在の予約可能日時です（${BUSINESS_INFO.policies.lastUpdated} 時点）。<br class="pc-only">
           セッションはオンライン（Google Meet等）にて実施いたします。
         </p>
@@ -61,14 +61,14 @@ export const Services = () => {
             ${BUSINESS_INFO.email}
           </a>
         </div>
-        <p style="font-size: 0.85rem; opacity: 0.7;">
+        <p style="font-size: 0.85rem; opacity: 0.9;">
           原則、3営業日以内に詳細（事前ヒアリング事項・決済方法等）をご案内いたします。
         </p>
       </section>
 
       <hr />
 
-      <section id="notes" style="font-size: 0.85rem; color: #777; line-height: 1.7;">
+      <section id="notes" style="font-size: 0.85rem; color: #555; line-height: 1.7;">
         <p><strong>キャンセルポリシー:</strong> ${BUSINESS_INFO.policies.cancelPolicy}</p>
         <p><strong>免責事項:</strong> ${BUSINESS_INFO.policies.disclaimer}</p>
       </section>

@@ -36,7 +36,7 @@ export const ServiceCard = ({
     <div 
       class="service-item" 
       data-plan-id="${id}"
-      style="border-bottom: 1px solid #eee; padding: 40px 0; opacity: ${isAvailable ? '1' : '0.6'};"
+      style="border-bottom: 1px solid #eee; padding: 40px 0; opacity: ${isAvailable ? '1' : '0.8'};"
     >
       <h3 style="font-size: 1.4rem; margin-bottom: 10px;">
         ${name}
@@ -48,7 +48,7 @@ export const ServiceCard = ({
       
       <p style="font-size: 1.1rem; letter-spacing: 0.05rem;">
         <strong>¥${price.toLocaleString()}</strong> 
-        <span style="font-size: 0.9rem; color: #777;">
+        <span style="font-size: 0.9rem; color: #555;">
           (${taxText}) / ${durationText}
         </span>
       </p>
