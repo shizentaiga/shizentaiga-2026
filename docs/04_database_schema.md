@@ -19,11 +19,11 @@
 ### 2.1 D1 インスタンスの作成 (初回のみ)
 npx wrangler d1 create shizentaiga-db
 
-### 2.2 wrangler.toml への紐付け
+### 2.2 wrangler.jsonc への紐付け
 [[d1_databases]]
-binding = "DB"
-database_name = "shizentaiga-db"
-database_id = "xxxx-xxxx-xxxx-xxxx" # createコマンドで発行されたIDを記載
+binding = "DB"  
+database_name = "shizentaiga-db"  
+database_id = "0c5a2e2a-7c62-4e5e-b2a7-7fed50040126" # createコマンドで発行されたIDを記載（DB作成時にIDが決まるため、毎回、異なる値となります。）
 
 ### 2.3 スキーマの適用 (実行コマンド)
 -- ローカル環境への適用
