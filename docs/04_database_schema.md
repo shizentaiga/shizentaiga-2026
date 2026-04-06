@@ -1,105 +1,103 @@
-# 04_データベーススキーマ設計書 (Database Schema Design) v1.0
+# 04_データベーススキーマ設計書 (Database Schema Design) v1.4
 
-本ドキュメントは、Cloudflare D1 (SQLite) におけるテーブル定義およびインデックス戦略を定義する。本設計は「Aletheia Core v1.8」の整合性ロジックに基づき、高速なカレンダー検索と堅牢な決済状態管理を両立させる。
+本ドキュメントは、Cloudflare D1 (SQLite) におけるテーブル定義およびインデックス戦略を定義する。
+「Aletheia Core v1.8」の整合性ロジックに基づき、高速なカレンダー検索と堅牢な決済状態管理を両立させる。
 
 ---
 
-## 1. テーブル定義 (Table Definitions)
+## 1. データベース基本情報
+- **論理名**: Shizentaiga Database
+- **物理名**: shizentaiga-db
+- **プラットフォーム**: Cloudflare D1 (SQLite)
+- **リスク管理**: 本番環境 (aletheia-db) と名称を分離し、誤操作によるデータ消失を防止する。
 
-### 1.1 slots (予約枠・在庫管理)
-予約の空き状況、仮確保、確定状態を管理する最重要テーブル。
+---
 
+## 2. 環境構築プロトコル
+以下の手順で、設計したスキーマを物理データベースへ反映する。
+
+### 2.1 D1 インスタンスの作成 (初回のみ)
+npx wrangler d1 create shizentaiga-db
+
+### 2.2 wrangler.toml への紐付け
+[[d1_databases]]
+binding = "DB"
+database_name = "shizentaiga-db"
+database_id = "xxxx-xxxx-xxxx-xxxx" # createコマンドで発行されたIDを記載
+
+### 2.3 スキーマの適用 (実行コマンド)
+-- ローカル環境への適用
+npx wrangler d1 execute shizentaiga-db --local --file=./src/db/schema.sql
+
+-- 本番環境への適用
+npx wrangler d1 execute shizentaiga-db --remote --file=./src/db/schema.sql
+
+---
+
+## 3. テーブル定義 (Table Definitions)
+
+### 3.1 slots (予約枠・在庫管理)
 | カラム名 | 型 | 制約 | 説明 |
 | :--- | :--- | :--- | :--- |
-| **tenant_id** | TEXT | NOT NULL | テナント識別子 (初期値: 'taiga_shizen') |
-| **id** | TEXT | PRIMARY KEY | 枠の一意識別子 (ULID または UUID 推奨) |
-| **date_string** | TEXT | NOT NULL | **検索用日付 (JST固定: 'YYYY-MM-DD')** |
-| **start_at_unix** | INTEGER | NOT NULL | 開始時刻 (UTC Unix Timestamp) |
+| **tenant_id** | TEXT | NOT NULL | 事業者識別子 |
+| **id** | TEXT | PRIMARY KEY | 枠の一意識別子 (ULID推奨) |
+| **date_string** | TEXT | NOT NULL | 検索用日付 (JST: 'YYYY-MM-DD') |
+| **start_at_unix** | INTEGER | NOT NULL | 開始時刻 (10桁 Unix Timestamp) |
 | **slot_duration** | INTEGER | NOT NULL | 枠の長さ (分単位) |
-| **status** | TEXT | NOT NULL | 状態 (available, pending, booked, error) |
-| **expires_at** | INTEGER | | **仮確保の期限 (UTC Unix Timestamp)** |
-| **retry_count** | INTEGER | DEFAULT 0 | Cron による自動照合の失敗回数 (最大3回) |
-| **last_retry_at** | INTEGER | | 最終照合試行時刻 (Unix Timestamp) |
-| **updated_at** | INTEGER | NOT NULL | 最終更新時刻 (Unix Timestamp) |
-
-### 1.2 processed_events (決済冪等性管理)
-Stripe Webhook の二重処理を防止するためのログテーブル。
-
-| カラム名 | 型 | 制約 | 説明 |
-| :--- | :--- | :--- | :--- |
-| **event_id** | TEXT | PRIMARY KEY | Stripe Event ID (`evt_...`) |
-| **tenant_id** | TEXT | NOT NULL | テナント識別子 |
-| **processed_at** | INTEGER | NOT NULL | 処理完了時刻 (Unix Timestamp) |
+| **status** | TEXT | NOT NULL | 状態 (available/pending/booked/error) |
+| **expires_at** | INTEGER | | 仮確保の期限 (10桁 Unix Timestamp) |
+| **retry_count** | INTEGER | DEFAULT 0 | 自動照合の失敗回数 |
+| **last_retry_at** | INTEGER | | 最終照合時刻 (10桁 Unix Timestamp) |
+| **updated_at** | INTEGER | NOT NULL | 最終更新時刻 (10桁 Unix Timestamp) |
 
 ---
 
-## 2. インデックス戦略 (Index Strategy)
+## 4. SQL 実装コード (src/db/schema.sql)
 
-D1 (SQLite) のクエリパフォーマンスを最大化し、フルスキャンを防止するためのインデックスを定義する。
-
-### 2.1 slots テーブル
-- **idx_slots_tenant_date**: `(tenant_id, date_string)`
-  - 用途: 特定テナントの特定日の空き枠一覧表示（カレンダー表示）を高速化。
-- **idx_slots_status_expires**: `(status, expires_at)`
-  - 用途: Cron Trigger による「期限切れの pending 枠」の抽出を最適化。
-- **idx_slots_tenant_status**: `(tenant_id, status)`
-  - 用途: 管理画面等でのステータス別集計。
-
----
-
-## 3. SQL 実装コード (schema.sql)
-
-初期構築時に実行する DDL。
-
+```sql
 -- 予約枠管理テーブル
+-- status に CHECK 制約を設け、アプリケーション層の typo による不正データ混入を防止する
 CREATE TABLE IF NOT EXISTS slots (
-    tenant_id TEXT NOT NULL,
-    id TEXT PRIMARY KEY,
-    date_string TEXT NOT NULL,
-    start_at_unix INTEGER NOT NULL,
-    slot_duration INTEGER NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('available', 'pending', 'booked', 'error')),
-    expires_at INTEGER,
-    retry_count INTEGER DEFAULT 0,
-    last_retry_at INTEGER,
-    updated_at INTEGER NOT NULL
+    tenant_id     TEXT    NOT NULL,        -- テナントID
+    id            TEXT    PRIMARY KEY,     -- 枠ID (ULID)
+    date_string   TEXT    NOT NULL,        -- 検索用日付文字列
+    start_at_unix INTEGER NOT NULL,        -- 開始時刻（秒単位）
+    slot_duration INTEGER NOT NULL,        -- 所要時間（分）
+    status        TEXT    NOT NULL         -- 状態管理
+        CHECK (status IN ('available', 'pending', 'booked', 'error')),
+    expires_at    INTEGER,                 -- 仮確保有効期限（秒単位）
+    retry_count   INTEGER DEFAULT 0,       -- 照合リトライ数
+    last_retry_at INTEGER,                 -- 最終照合時刻（秒単位）
+    updated_at    INTEGER NOT NULL         -- 最終更新時刻（秒単位）
 );
 
--- 検索用インデックス
-CREATE INDEX IF NOT EXISTS idx_slots_tenant_date ON slots (tenant_id, date_string);
-CREATE INDEX IF NOT EXISTS idx_slots_status_expires ON slots (status, expires_at);
+-- 特定テナントの特定日の枠を高速抽出するための複合インデックス
+CREATE INDEX IF NOT EXISTS idx_slots_tenant_date 
+    ON slots (tenant_id, date_string);
 
--- べき等性管理テーブル
+-- 期限切れの pending 枠を効率的に抽出するためのインデックス
+CREATE INDEX IF NOT EXISTS idx_slots_status_expires 
+    ON slots (status, expires_at);
+
+-- 決済の二重処理を防止するべき等性管理テーブル
 CREATE TABLE IF NOT EXISTS processed_events (
-    event_id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL,
-    processed_at INTEGER NOT NULL
+    event_id     TEXT    PRIMARY KEY,      -- Stripe イベントID (evt_...)
+    tenant_id    TEXT    NOT NULL,         -- テナントID
+    processed_at INTEGER NOT NULL          -- 処理日時（秒単位）
 );
 
----
 
-## 4. 運用上の留意事項
+## 5. 運用および実装上の留意事項
 
-### 4.1 タイムゾーンの厳守
-JST日付: date_string は Asia/Tokyo 基準の文字列で保存。  
-UTC整数: start_at_unix 等はすべて UTC 基準の「秒単位(10桁)」 で統一。  
-実装規約: Math.floor(Date.now() / 1000) を使用し、ミリ秒の混入を徹底排除する。  
+### 5.1 タイムゾーンと精度の厳守
+- **JST日付**: `date_string` は常に **Asia/Tokyo** 基準の文字列で保存する。
+- **10桁統一**: 時刻データはすべて **秒単位(10桁)** で統一し、ミリ秒(13桁)を混入させない。
+- **生成式**: `Math.floor(Date.now() / 1000)` を実装規約とする。
 
-### 4.2 アトミック更新のクエリ例
-在庫確保時の UPDATE 文は以下の形式を厳守し、アプリケーションレベルでのロックではなく、データベースレベルでの競合排除を行う。
+### 5.2 アトミック更新 (二重予約防止)
+在庫確保時は、必ず `WHERE status = 'available'` 条件を含めた `UPDATE` 文を実行し、DBレベルでの競合排除を行う。
 
-UPDATE slots 
-SET status = 'pending', expires_at = ?, updated_at = ?
-WHERE id = ? AND tenant_id = ? AND status = 'available';
-
-## 5. 実装上のアドバイス (Implementation Tips)
-
-### 5.1 updated_at の手動更新
-D1 (SQLite) は自動更新機能が弱いため、`UPDATE` 文には必ず `updated_at = ?` を含め、アプリ側で生成したタイムスタンプをセットすること。
-
-### 5.2 ULID の採用推奨
-主キー `id` にはソート可能な **ULID** を推奨。時系列順の書き込みにより D1 の I/O 負荷を抑え、ID 自体から作成日時を特定できるためデバッグ効率も向上する。
-
----
-最終更新日: 2026-04-06
-作成者: 清善 泰賀
+### 5.3 運用保守ロードマップ（将来的な最適化）
+- **容量節約**: `processed_events` は決済数に応じて肥大化するため、将来的に「3ヶ月以上前の古いログを削除する」クリーンアップ・ジョブの導入を検討すること。
+- **性能監視**: 検索パフォーマンスが低下した場合は、`EXPLAIN QUERY PLAN` コマンドを実行し、定義したインデックスが適切に活用されているか確認すること。
+- **手動更新**: D1 は `updated_at` の自動更新が弱いため、すべての `UPDATE` 文にアプリ側からタイムスタンプを明示的にセットすること。
