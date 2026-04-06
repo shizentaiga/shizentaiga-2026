@@ -6,7 +6,8 @@
 
 import { html } from 'hono/html'
 import { BUSINESS_INFO } from '../constants/info'
-import { ServiceCard } from '../components/ServiceCard' // 分離したコンポーネント
+import { ServiceCard } from '../components/ServiceCard'
+import { SlotItem } from '../components/SlotItem'
 
 export const Services = () => {
   return html`
@@ -25,7 +26,7 @@ export const Services = () => {
             price: s.price,
             taxText: s.taxIncluded ? '税込' : '税別',
             durationText: `${s.duration}${s.suffix || ''}`,
-            isAvailable: true // ロジックに応じて動的に変更可能
+            isAvailable: true 
           }))}
         </div>
       </section>
@@ -39,16 +40,12 @@ export const Services = () => {
         
         <div class="slots-area" style="background: #fafafa; padding: 25px; border-radius: 2px;">
           <ul style="list-style: none; padding: 0; margin: 0;">
-            ${BUSINESS_INFO.availableSlots.map(slot => html`
-              <li style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eaeaea;">
-                <span style="font-family: monospace; font-size: 1.05rem;">
-                  📅 ${slot.date} <span style="margin-left: 10px; color: #888;">${slot.time}</span>
-                </span>
-                <span style="font-size: 0.85rem; background: #1a1a1a; color: #fff; padding: 2px 8px; border-radius: 2px;">
-                  受付中
-                </span>
-              </li>
-            `)}
+            ${BUSINESS_INFO.availableSlots.map(slot => SlotItem({
+              date: slot.date,
+              time: slot.time,
+              status: 'open',
+              statusText: '受付中'
+            }))}
           </ul>
         </div>
       </section>
