@@ -10,8 +10,7 @@
  */
 
 import { Hono } from 'hono'
-// import { serveStatic } from 'hono/cloudflare-workers'
-import { serveStatic } from 'hono/serve-static' // ← これに変える
+import { serveStatic } from 'hono/cloudflare-workers'
 import { renderer } from './renderer' 
 import { Top } from './pages/Top'     
 import { Legal } from './pages/Legal' 
@@ -19,12 +18,8 @@ import { Services } from './pages/Services'
 
 const app = new Hono()
 
-/**
- * ■ 静的ファイル（JS/CSS等）の配信設定
- * ローカルの Vite 環境でエラーを引き起こす「__STATIC_CONTENT_MANIFEST」への依存を排除しました。
- * Cloudflare Workers 環境では、この設定により自動的に適切なアセットが配信されます。
- */
-//app.use('/static/*', serveStatic({ root: './' }))
+// @ts-ignore: Honoの型定義の不備を回避し、ランタイムの自動解決に任せる
+app.use('/static/*', serveStatic({ root: './' }))
 
 /**
  * ■ 共通レイアウト（renderer）の適用
