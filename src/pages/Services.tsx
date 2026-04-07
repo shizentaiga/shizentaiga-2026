@@ -1,7 +1,8 @@
 /**
  * @file Services.tsx
  * @description サービス予約ページのメインレイアウト。
- * 各コンポーネントを統合し、クライアントスクリプトを配信します。
+ * コンポーネントの統合、およびインライン・クライアントスクリプト（JS）を含みます。
+ * 外部ファイルへの依存を排除し、ビルドエラーに左右されない確実な動作を優先した構成です。
  */
 
 import { html } from 'hono/html'
@@ -82,7 +83,71 @@ export const Services = () => {
 
       ${BookingFooter()}
 
-      <script type="module" src="/src/client/booking-interaction.ts"></script>
+      <script>
+        (function() {
+          const initBooking = () => {
+            const calendarContainer = document.getElementById('calendar-container');
+            const selectedDateDisplay = document.getElementById('selected-date-display');
+            const slotList = document.getElementById('slot-list');
+
+            if (!calendarContainer) return;
+
+            calendarContainer.addEventListener('click', (e) => {
+              const target = e.target;
+              const cell = target.closest('.calendar-day-cell');
+
+              // 予約不可またはセル以外は無視
+              if (!cell || cell.dataset.available === 'false') return;
+
+              const selectedDate = cell.dataset.date;
+              if (!selectedDate) return;
+
+              // 1. UI更新：選択状態の切り替え
+              document.querySelectorAll('.calendar-day-cell').forEach((el) => {
+                el.dataset.selected = 'false';
+              });
+              cell.dataset.selected = 'true';
+
+              // 2. 表示日付の更新
+              if (selectedDateDisplay) {
+                selectedDateDisplay.textContent = selectedDate;
+              }
+
+              // 3. タイムスロットのシミュレーション
+              if (slotList) {
+                slotList.innerHTML = \`
+                  <div class="col-span-full py-8 text-center">
+                    <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-[#2c5282] mb-2"></div>
+                    <p class="text-[10px] text-[#2c5282] font-bold tracking-widest uppercase animate-pulse">
+                      Searching slots for \${selectedDate}...
+                    </p>
+                  </div>
+                \`;
+
+                setTimeout(() => {
+                  slotList.innerHTML = \`
+                    <div class="col-span-full py-8 text-center bg-gray-50 border border-dashed border-gray-200 rounded-sm">
+                      <p class="text-[11px] text-gray-500 font-bold tracking-widest">
+                        ご指定の日付（\${selectedDate}）に現在予約枠はありません。
+                      </p>
+                      <p class="text-[9px] text-gray-400 uppercase mt-1">No available slots for this date.</p>
+                    </div>
+                  \`;
+                }, 800);
+              }
+
+              console.log('[Booking] Click detected:', selectedDate);
+            });
+          };
+
+          // 実行タイミングの制御
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initBooking);
+          } else {
+            initBooking();
+          }
+        })();
+      </script>
 
     </body>
   `
