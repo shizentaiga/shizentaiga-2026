@@ -84,18 +84,30 @@ export const Services = () => {
 
       ${BookingFooter()}
 
-      <script type="module">
-        // ブラウザからアクセス可能なパスを指定してください
-        // Vite環境であれば通常は src からのフルパスで動作します
-        import { initBookingInteraction } from '/src/client/booking-interaction.ts';
+      // 不具合あり(本番環境で日時選択不可)
+      // <script type="module">
+      //   // ブラウザからアクセス可能なパスを指定してください
+      //   // Vite環境であれば通常は src からのフルパスで動作します
+      //   import { initBookingInteraction } from '/src/client/booking-interaction.ts';
 
-        // DOMの構築が完了してから実行
+      //   // DOMの構築が完了してから実行
+      //   document.addEventListener('DOMContentLoaded', () => {
+      //     try {
+      //       initBookingInteraction();
+      //       console.log('[System] Booking interaction initialized.');
+      //     } catch (error) {
+      //       console.error('[System] Failed to initialize interaction:', error);
+      //     }
+      //   });
+      // </script>
+
+      // 切り分け用
+      <script>
         document.addEventListener('DOMContentLoaded', () => {
-          try {
-            initBookingInteraction();
-            console.log('[System] Booking interaction initialized.');
-          } catch (error) {
-            console.error('[System] Failed to initialize interaction:', error);
+          console.log('Test: Script is running on production!');
+          const container = document.getElementById('calendar-container');
+          if (container) {
+            container.style.border = '5px solid red'; // 成功すればカレンダーに赤い枠が出る
           }
         });
       </script>
