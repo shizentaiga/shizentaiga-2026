@@ -1,11 +1,11 @@
 /**
  * @file style.css
- * @description サイト全体の基本スタイルと、予約システム独自のコンポーネント定義。
- * 明朝体をベースとした信頼感のあるデザインと、PSI（アクセシビリティ・LCP）最適化を両立します。
+ * @description サイト全体のブランド設計図。
+ * 明朝体ベースの信頼感と、旧デザインの正確な余白・色味をモダンなTailwind v4環境で再現します。
  */
 
 /* --- Tailwind Layers Setup --- */
-@import "tailwindcss"; /* これだけで v4 では OK です */
+@import "tailwindcss";
 
 /* ---------------------------------------
     1. Base Typography & Reset
@@ -13,10 +13,10 @@
 @layer base {
     :root {
         --primary-color: #1a1a1a;
-        --accent-blue: #2c5282; /* 予約システム共通アクセントカラー */
+        --accent-blue: #2c5282; /* 予約システム用アクセント */
         --text-main: #2b2b2b;
-        --text-muted: #4a4a4a; /* PSI対策: #555からコントラストを強化 */
-        --bg-base: #fcfcfc;
+        --text-muted: #555555;  /* 旧デザインの数値 #555 を採用 */
+        --bg-base: #fcfcfc;     /* 旧デザインの背景色 */
     }
 
     body {
@@ -25,8 +25,8 @@
         background-color: var(--bg-base);
         color: var(--text-main);
         font-size: 16px;
-        /* フォント：Mac/Win/iOSで明朝体を安定させるスタック */
-        font-family: "游明朝", "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "MS PMincho", serif;
+        /* 旧デザインのフォントスタックを完全再現 */
+        font-family: "游明朝", YuMincho, "ヒラギノ明朝 ProN W3", "Hiragino Mincho ProN", "MS PMincho", serif;
         line-height: 1.8;
         -webkit-font-smoothing: antialiased;
     }
@@ -38,7 +38,7 @@
 
     h1 {
         font-weight: 500;
-        font-size: clamp(1.8rem, 5vw, 2.2rem); /* スマホ対応の可変フォントサイズ */
+        font-size: clamp(1.8rem, 5vw, 2.2rem); /* スマホで1.8rem、PCで2.2remを維持 */
         letter-spacing: 0.2rem;
         margin-bottom: 0.5rem;
         color: var(--primary-color);
@@ -53,6 +53,17 @@
         letter-spacing: 0.1rem;
     }
 
+    h3 {
+        font-size: 1.1rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem; /* 見出しと説明文の間の緊密な関係を保持 */
+        color: var(--primary-color);
+    }
+
+    p {
+        margin-bottom: 1.2rem;
+    }
+
     img {
         display: block;
         width: 100%;
@@ -62,7 +73,7 @@
     }
 
     section { 
-        margin-bottom: 80px; 
+        margin-bottom: 80px; /* 旧デザインのセクション間隔 */
     }
 }
 
@@ -72,41 +83,44 @@
 @layer components {
     .container {
         width: 92%; 
-        /* 読みやすさを考慮し、一行の文字数が多すぎない幅に制限 */
-        max-width: clamp(320px, 50vw, 540px); 
+        max-width: clamp(320px, 50vw, 540px); /* 旧デザインの黄金比幅 */
         margin: 0 auto;
         padding: 100px 0;
     }
 
     .subtitle {
         display: block;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         color: var(--text-muted);
         letter-spacing: 0.3rem;
         text-transform: uppercase;
-        margin-top: 0.8rem;
+        margin-top: 0.5rem; /* 名前との適切な行間 */
     }
 
     /* 3. Media & Assets */
     .profile-image-area {
         margin-bottom: 30px;
         background-color: #f0f0f0; 
-        aspect-ratio: 3 / 4; /* 画像読み込み前のガタつき（CLS）を防止 */
+        aspect-ratio: 3 / 4;
         max-width: 280px; 
         margin-left: auto;
         margin-right: auto;
     }
 
-    /* 4. Interactive Elements */
+    /* 4. Interactive Elements (ブランディング：白背景・黒反転) */
     .btn {
         display: inline-block;
-        padding: 12px 34px;
+        padding: 12px 30px; /* 旧デザインのパディングを再現 */
+        margin-top: 1.2rem;  /* 説明文とボタンの間の余白 */
         border: 1px solid var(--primary-color);
         color: var(--primary-color);
         text-decoration: none;
         font-size: 0.9rem;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         background: transparent;
+        text-align: center;
+        line-height: 1;
+        cursor: pointer;
     }
 
     .btn:hover {
@@ -120,11 +134,12 @@
     }
 
     .link-list li { 
-        margin-bottom: 1.2rem; 
+        margin-bottom: 15px; /* 旧デザインのリスト間隔 */
     }
 
     .link-list a {
         color: var(--primary-color);
+        text-decoration: underline; /* アクセシビリティ：リンクを明示 */
         text-underline-offset: 4px;
         transition: opacity 0.2s;
     }
@@ -134,7 +149,6 @@
     }
 
     /* 5. Booking Components (Services UI) */
-    /* 選択カードの共通設計 */
     .selection-card {
         border: 1px solid #e5e7eb;
         transition: all 0.2s ease-in-out;
@@ -142,45 +156,20 @@
     }
 
     .selection-card[data-selected="true"] {
-        border: 2px solid var(--accent-blue) !important; /* Tailwindのボーダー幅を上書き */
+        border: 2px solid var(--accent-blue) !important;
         background: rgba(248, 250, 252, 0.95);
-    }
-
-    .selection-card:hover {
-        border-color: var(--accent-blue);
-    }
-
-    /* カレンダー専用パーツ */
-    .status-dot {
-        width: 6px; 
-        height: 6px; 
-        border-radius: 50%; 
-        background: var(--accent-blue);
-    }
-
-    .available-mark {
-        width: 4px; 
-        height: 4px; 
-        border-radius: 50%; 
-        background: var(--accent-blue);
-        margin-top: 4px;
-    }
-
-    .calendar-day-cell[data-selected="true"] {
-        background-color: #f8fafc;
-        box-shadow: inset 0 0 0 2px var(--accent-blue);
-        z-index: 10;
     }
 
     /* 6. Footer & Legal */
     footer {
-        margin-top: 120px;
+        margin-top: 100px; /* 旧デザインのフッター上部余白 */
         padding-bottom: 40px;
         text-align: center;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
     }
 
-    footer p {
+    footer p, 
+    footer p small {
         color: var(--text-muted);
     }
 
@@ -188,13 +177,13 @@
         color: var(--text-muted);
         text-decoration: underline;
         text-underline-offset: 3px;
+        transition: color 0.3s;
     }
 
     .footer-link:hover {
         color: var(--primary-color);
     }
 
-    /* メールアドレスのコピー容易性 */
     .selectable-email {
         user-select: all;
         -webkit-user-select: all;
@@ -202,7 +191,8 @@
         border-bottom: 1px dotted var(--text-muted);
         cursor: text;
         padding: 2px 4px;
-        background-color: rgba(0,0,0,0.03);
+        background-color: rgba(0,0,0,0.02);
+        border-radius: 2px;
     }
 }
 
@@ -217,18 +207,6 @@
     }
 
     @media (max-width: 600px) {
-        .container { padding: 60px 0; }
+        /* モバイル時のコンテナパディング最適化はbaseレイヤーに集約済み */
     }
 }
-
-/**
- * 【メンテナンス時の注意事項】
- * 1. デザインの整合性:
- * 青系のアクセントカラーを変更する場合は --accent-blue を一括修正してください。
- * 2. Tailwindとの競合:
- * Tailwind のクラス (border-2 など) が優先されない場合は、本ファイルのセレクタに 
- * html もしくは body を前置して詳細度を上げてください。
- * 3. フォントの読み込み:
- * 明朝体が適用されない Windows ユーザー向けに、必要に応じて Google Fonts の 
- * Noto Serif JP をフォールバックに追加することを検討してください。
- */

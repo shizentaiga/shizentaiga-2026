@@ -1,7 +1,7 @@
 /**
  * src/pages/Top.tsx
  * 【トップページ：ブランド・アイデンティティ定義層】
- * * ■ ビジネス視点の役割：
+ * ■ ビジネス視点の役割：
  * 1. 信頼性の獲得: 最初のLCP（読み込み速度）とデザインの整合性で、コンサルタントとしての専門性を直感的に伝える。
  * 2. 導線の集約: 拡散したSNSではなく、価値観の伝わる note/Qiita へトラフィックを集中させる。
  * 3. 資産の保護: htmlテンプレートを採用することで、既存のSEO資産（タグ構造）を100%維持したままモダン環境へ移行。
@@ -32,7 +32,7 @@ export const Top = () => {
       <section id="service">
         <h2>Service</h2>
         <div class="service-card">
-          <h3>個別経営診断</h3>
+          <h3 class="font-black text-lg">個別経営診断</h3>
           <p>経営の盲点を外側から観測する、個別セッション。</p>
           <a href="https://www.reservestock.jp/pc_reserves_v3/courses/58025" class="btn">詳細・予約</a>
         </div>
@@ -43,27 +43,34 @@ export const Top = () => {
         <ul class="link-list">
           <li><a href="https://note.com/taiga_shizen" target="_blank" rel="noopener">note</a></li>
           <li><a href="https://qiita.com/tshizen2506" target="_blank" rel="noopener">Qiita</a></li>
+          <li><a href="https://www.linkedin.com/in/taigashizen/" target="_blank" rel="noopener">LinkedIn</a></li>
         </ul>
       </section>
     </main>
     
     <footer>
       <p>&copy; 2026 Taiga Shizen.</p>
-      <p><small><a href="/legal" class="footer-link">特定商取引法に基づく表記</a></small></p>
-      <p><small>Contact: <span class="selectable-email">contact@shizentaiga.com</span></small></p>
+      <p>
+        <small>
+          <a href="/legal" class="footer-link">特定商取引法に基づく表記</a>
+        </small>
+      </p>
+      <p>
+        <small>
+          Contact: <span class="selectable-email">contact@shizentaiga.com</span>
+        </small>
+      </p>
     </footer>
   `
 }
 
 /**
  * 💡 開発者向け実装メモ (Maintenance Notes)
- * * 1. 画像最適化 (LCP/Core Web Vitals):
+ * 1. デザイン制御の分離:
+ * - 本ファイルは「情報の階層構造」に専念。具体的な余白、フォント、ボタンの反転挙動は
+ * 全て src/style.css の @layer base および @layer components で一括管理。
+ * 2. 画像最適化 (LCP/Core Web Vitals):
  * - profile-image-area に aspect-ratio を指定し、CLP（レイアウトシフト）を防止。
- * - fetchpriority="high" を付与し、メインビジュアルの早期描画をブラウザに指示。
- * * 2. リンク戦略:
- * - 拡散防止のため、外部リンクは target="_blank" と rel="noopener" をセットで運用。
- * - note/Qiita にトラフィックを絞り、ドメインの権威性とコンサルタントとしての専門性を裏付け。
- * * 3. コンプライアンスと保守:
- * - 決済を伴うサービス提供において、Footer 内の /legal 導線は法的に必須。
- * - info.ts への移行が完了するまでは、このファイル内の文言は手動保守を行う。
+ * 3. リンク戦略:
+ * - LinkedIn を追加。プロフェッショナルな背景を補強し、信頼の裏付けとする。
  */
