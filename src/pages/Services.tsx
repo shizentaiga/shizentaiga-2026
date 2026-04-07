@@ -1,56 +1,65 @@
 /**
  * @file Services.tsx
  * @description サービス予約ページのメインレイアウト。
- * 各コンポーネント（プラン選択、カレンダー、コンサルタント、フッター）を統合します。
+ * 各コンポーネントを統合し、開発/本番環境に応じたクライアントスクリプトを配信します。
+ * ※以下は、本番環境でのブラウザキャッシュ対策用バージョン（デプロイごとに更新推奨）
+ * const assetVersion = "20260407-v1";
  */
 
 import { html } from 'hono/html'
 
-/* --- DATA & CONSTANTS (静的データ・定数) --- */
-import { BUSINESS_INFO } from '../constants/info'             // 屋号、サービス内容、予約枠などの基本情報
+/* --- DATA & CONSTANTS --- */
+import { BUSINESS_INFO } from '../constants/info'
 
-/* --- LOGIC (計算・変換処理) --- */
-import { generateCalendarData } from '../lib/calendar-logic'    // カレンダー描画用の日付配列を生成するロジック
+/* --- LOGIC --- */
+import { generateCalendarData } from '../lib/calendar-logic'
 
-/* --- COMPONENTS (UI部品) --- */
-import { ServicePlanList } from '../components/ServicePlanCard'  // 01. プラン一覧（カード形式）の描画
-import { CalendarSection } from '../components/CalendarSection'  // 02. カレンダー本体と枠選択の描画
-import { ConsultantSection } from '../components/ConsultantSection' // 03. コンサルタント情報の描画
-import { BookingFooter } from '../components/BookingFooter'      // 04. 決済・送信を担うフローティングフッター
+/* --- COMPONENTS --- */
+import { ServicePlanList } from '../components/ServicePlanCard'
+import { CalendarSection } from '../components/CalendarSection'
+import { ConsultantSection } from '../components/ConsultantSection'
+import { BookingFooter } from '../components/BookingFooter'
 
 export const Services = () => {
   /* -------------------------------------------------------------------------- */
-  /* 1. DATA PREPARATION (ロジック部)
+  /* 1. DATA PREPARATION
   /* -------------------------------------------------------------------------- */
   const baseDate = new Date();
   const calendarDays = generateCalendarData(baseDate);
   
-  // 最短予約可能日の特定
+  // 予約可能な最短の日付を特定
   const firstAvailableDate = BUSINESS_INFO.availableSlots[0]?.date || "";
 
-  // 年・月の抽出：CalendarSection への引数
+  // カレンダー表示用の年・月
   const currentYear = baseDate.getFullYear();
   const currentMonth = baseDate.getMonth() + 1;
 
   /* -------------------------------------------------------------------------- */
-  /* 2. RENDERING (表示部)
+  /* 2. ENVIRONMENT & ASSETS CONFIGURATION
+  /* -------------------------------------------------------------------------- */
+  // Viteの環境変数を使用して、開発モード（TS直接読み込み）か本番モード（ビルド済みJS）かを判定
+  const isDev = import.meta.env.DEV;
+  
+  // 本番環境でのブラウザキャッシュ対策用バージョン（デプロイごとに更新推奨）
+  const assetVersion = "20260407-v1";
+
+  /* -------------------------------------------------------------------------- */
+  /* 3. RENDERING
   /* -------------------------------------------------------------------------- */
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
-      /* Critical CSS: 動的な状態に基づくスタイル */
+      /* 選択状態や装飾に関する Critical CSS */
       .selection-card[data-selected="true"] { border: 2px solid #2c5282; background: rgba(249, 250, 251, 0.9); }
       .selection-card[data-selected="false"] { border: 1px solid #e5e7eb; }
       .selection-card:hover { border-color: #2c5282; }
       
-      /* カレンダー関連の装飾 */
       .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #2c5282; }
       .available-mark { width: 4px; height: 4px; border-radius: 50%; background: #2c5282; margin-top: 2px; }
       .calendar-day-cell[data-selected="true"] { background-color: #f8fafc; box-shadow: inset 0 0 0 2px #2c5282; z-index: 10; }
       
-      /* アニメーション：カレンダーの表示切り替えを滑らかに */
       #calendar-container { transition: all 0.3s ease-in-out; }
     </style>
 
@@ -84,43 +93,10 @@ export const Services = () => {
 
       ${BookingFooter()}
 
-      // 不具合あり(本番環境で日時選択不可)
-      // <script type="module">
-      //   // ブラウザからアクセス可能なパスを指定してください
-      //   // Vite環境であれば通常は src からのフルパスで動作します
-      //   import { initBookingInteraction } from '/src/client/booking-interaction.ts';
-
-      //   // DOMの構築が完了してから実行
-      //   document.addEventListener('DOMContentLoaded', () => {
-      //     try {
-      //       initBookingInteraction();
-      //       console.log('[System] Booking interaction initialized.');
-      //     } catch (error) {
-      //       console.error('[System] Failed to initialize interaction:', error);
-      //     }
-      //   });
-      // </script>
-
-      // // 切り分け用(赤枠表示OK：本番/ローカルともに→スクリプトのパスが不具合の原因。)
-      // <script>
-      //   document.addEventListener('DOMContentLoaded', () => {
-      //     console.log('Test: Script is running on production!');
-      //     const container = document.getElementById('calendar-container');
-      //     if (container) {
-      //       container.style.border = '5px solid red'; // 成功すればカレンダーに赤い枠が出る
-      //     }
-      //   });
-      // </script>
-
-      <script src="/js/booking-interaction.js"></script>
-      <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          // グローバルまたは読み込まれた関数を実行
-          if (typeof initBookingInteraction === 'function') {
-            initBookingInteraction();
-          }
-        });
-      </script>
+      ${isDev 
+        ? html`<script type="module" src="/src/client/booking-interaction.ts"></script>`
+        : html`<script type="module" src="/static/js/booking-interaction.js?v=${assetVersion}"></script>`
+      }
 
     </body>
   `

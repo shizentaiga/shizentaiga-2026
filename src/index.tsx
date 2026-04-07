@@ -1,21 +1,30 @@
 /* src/index.tsx
  * 【サイト運営の司令塔：ルーティングと共通管理】
- * * ■ 運用コマンド（最短ルート）
+ * ■ 運用コマンド（最短ルート）
  * 1. ローカル開発: `npm run dev`（ブラウザで http://localhost:5173 を確認）
  * 2. 本番公開(Wrangler): `npx wrangler deploy`（Cloudflare Workersへ即時反映）
- * * ■ 経営・サービス視点での導入メリット：
+ * ■ 経営・サービス視点での導入メリット：
  * ・運用コストの削減: 共通部分（ヘッダー/フッター/SEO設定）を一括管理し、修正漏れを防ぐ。
  * ・信頼性の担保: 法務情報（特商法）などを独立させ、更新性を高めることでコンプライアンスを維持。
  * ・拡張性: 新サービス追加時に、既存ページに影響を与えず迅速にページを増設可能。
  */
 
 import { Hono } from 'hono'
+// import { serveStatic } from 'hono/cloudflare-workers'
+import { serveStatic } from 'hono/serve-static' // ← これに変える
 import { renderer } from './renderer' 
 import { Top } from './pages/Top'     
 import { Legal } from './pages/Legal' 
 import { Services } from './pages/Services'
 
 const app = new Hono()
+
+/**
+ * ■ 静的ファイル（JS/CSS等）の配信設定
+ * ローカルの Vite 環境でエラーを引き起こす「__STATIC_CONTENT_MANIFEST」への依存を排除しました。
+ * Cloudflare Workers 環境では、この設定により自動的に適切なアセットが配信されます。
+ */
+//app.use('/static/*', serveStatic({ root: './' }))
 
 /**
  * ■ 共通レイアウト（renderer）の適用
