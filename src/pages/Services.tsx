@@ -101,13 +101,23 @@ export const Services = () => {
       //   });
       // </script>
 
-      // 切り分け用
+      // // 切り分け用(赤枠表示OK：本番/ローカルともに→スクリプトのパスが不具合の原因。)
+      // <script>
+      //   document.addEventListener('DOMContentLoaded', () => {
+      //     console.log('Test: Script is running on production!');
+      //     const container = document.getElementById('calendar-container');
+      //     if (container) {
+      //       container.style.border = '5px solid red'; // 成功すればカレンダーに赤い枠が出る
+      //     }
+      //   });
+      // </script>
+
+      <script src="/js/booking-interaction.js"></script>
       <script>
         document.addEventListener('DOMContentLoaded', () => {
-          console.log('Test: Script is running on production!');
-          const container = document.getElementById('calendar-container');
-          if (container) {
-            container.style.border = '5px solid red'; // 成功すればカレンダーに赤い枠が出る
+          // グローバルまたは読み込まれた関数を実行
+          if (typeof initBookingInteraction === 'function') {
+            initBookingInteraction();
           }
         });
       </script>
