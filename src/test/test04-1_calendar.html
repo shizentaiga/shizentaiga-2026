@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Logic Test - Shizen Taiga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#1a1a1a',
+                        'accent': '#2c5282',
+                        'text-main': '#333333',
+                        'text-sub': '#555555',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .cal-day-selected {
+            @apply bg-accent text-white font-medium outline outline-1 outline-offset-1 outline-accent/30;
+        }
+        .cal-sun { @apply text-red-900/70 font-medium; }
+        .cal-sat { @apply text-accent font-medium; }
+    </style>
+</head>
+<body class="bg-gray-100 p-10">
+
+    <div class="max-w-sm mx-auto bg-white p-8 rounded-sm shadow-sm border border-gray-100">
+        <div id="calendar-month" class="mb-6 font-medium text-primary text-sm tracking-widest uppercase"></div>
+        
+        <div class="grid grid-cols-7 gap-1 text-[10px] text-center">
+            <div class="cal-sun py-2">SUN</div>
+            <div class="py-2 text-gray-400">MON</div>
+            <div class="py-2 text-gray-400">TUE</div>
+            <div class="py-2 text-gray-400">WED</div>
+            <div class="py-2 text-gray-400">THU</div>
+            <div class="py-2 text-gray-400">FRI</div>
+            <div class="cal-sat py-2">SAT</div>
+
+            <div id="calendar-grid" class="contents"></div>
+        </div>
+
+        <div class="mt-6 text-[10px] text-text-sub border-t pt-4">
+            <p>※本日の日付が自動的に選択（強調）されます。</p>
+        </div>
+    </div>
+
+    <script>
+        function generateCalendar() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth(); // 0-11
+            const today = now.getDate();
+
+            // 1. ヘッダーの更新 (例: 2026.04)
+            document.getElementById('calendar-month').textContent = `${year}.${(month + 1).toString().padStart(2, '0')}`;
+
+            // 2. カレンダー計算
+            const firstDayIdx = new Date(year, month, 1).getDay(); // 1日の曜日指数 (0:日〜6:土)
+            const lastDate = new Date(year, month + 1, 0).getDate(); // 今月の末日
+            const prevLastDate = new Date(year, month, 0).getDate(); // 前月の末日
+
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+
+            // 3. 前月の埋め（グレーアウト部分）
+            for (let i = firstDayIdx; i > 0; i--) {
+                const day = prevLastDate - i + 1;
+                grid.innerHTML += `<div class="opacity-20 py-2 text-text-sub">${day}</div>`;
+            }
+
+            // 4. 今月の日付
+            for (let date = 1; date <= lastDate; date++) {
+                const isToday = (date === today);
+                const isSunday = (new Date(year, month, date).getDay() === 0);
+                const isSaturday = (new Date(year, month, date).getDay() === 6);
+                
+                let classes = "py-2 cursor-pointer hover:bg-gray-100 rounded-full transition-colors";
+                if (isToday) classes += " cal-day-selected";
+                if (isSunday && !isToday) classes += " cal-sun";
+                if (isSaturday && !isToday) classes += " cal-sat";
+
+                grid.innerHTML += `<div class="${classes}" onclick="selectDate(${date})">${date}</div>`;
+            }
+        }
+
+        function selectDate(date) {
+            console.log("Selected Date:", date);
+            // ここに選択時のロジックを追加可能
+        }
+
+        // 実行
+        generateCalendar();
+    </script>
+</body>
+</html>
