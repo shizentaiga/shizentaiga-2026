@@ -34,8 +34,7 @@ export const Services = () => {
       <section id="reservation" style="margin-top: 60px;">
         <h2>Available Slots</h2>
         <p style="font-size: 0.9rem; color: #555; margin-bottom: 25px;">
-          ※現在の予約可能日時です（${BUSINESS_INFO.policies.lastUpdated} 時点）。<br class="pc-only">
-          セッションはオンライン（Google Meet等）にて実施いたします。
+          セッションはオンライン（Google Meet）にて実施いたします。
         </p>
         
         <div class="slots-area" style="background: #fafafa; padding: 25px; border-radius: 2px;">
