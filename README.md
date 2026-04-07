@@ -86,6 +86,7 @@ src/
 | ファイル名 | 内容 |
 |---|---|
 | `00_project_master_plan.md` | 次世代基盤移行および決済内製化の全体計画書 |
+| `00-1_emergency_reboot_guide.md` | 障害発生時の緊急復旧手順 |
 | `00-2_project_reserve_plan.md` | v1.8 予約決済基盤の「正典」設計図 |
 | `01_system_architecture.md` | システム構造・ディレクトリ設計・データフロー等の定義 |
 | `02_implementation_detail.md` | 死活監視・自動更新・各コンポーネントの挙動等の詳細仕様 |
