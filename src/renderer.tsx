@@ -80,10 +80,15 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body>
-        {/* 修正箇所5: 余計な .container クラスを除去。
-            Tailwind の container クラスによる意図しない中央寄せや幅制限を防ぎ、
-            Services.tsx 側で定義した自由なレイアウトをそのまま反映させます。 */}
-        {children}
+        {/* 修正箇所5（再修正）：
+            トップページ等の既存レイアウトを維持するため、
+            一度 .container クラスを持つ div を戻します。
+            もし Services.tsx で幅が狭すぎる場合は、Services.tsx 側で
+            max-w-none などを指定して調整するのが最も安全です。
+        */}
+        <div className="container mx-auto">
+          {children}
+        </div>
       </body>
     </html>
   )
