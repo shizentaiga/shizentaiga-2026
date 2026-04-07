@@ -13,7 +13,7 @@ export const BookingFooter = () => html`
   <div class="fixed bottom-0 w-full bg-white/95 backdrop-blur-md py-6 border-t border-gray-200 z-[100]">
     <div class="max-w-3xl mx-auto px-6 flex justify-between items-center">
       <div class="summary">
-        <div class="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-tighter">Current Plan</div>
+        <div class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-tighter">Current Plan</div>
         <div id="display-price" class="text-xl md:text-2xl font-bold text-gray-900">
           <span class="text-xs mr-1 font-normal opacity-40">JPY</span>--
         </div>

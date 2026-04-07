@@ -26,7 +26,7 @@ export const CalendarSection = (
 
   return html`
     <section class="mb-12">
-      <h2 class="text-xs font-bold tracking-[0.2em] text-gray-400 mb-6 uppercase">02. Select Date & Time</h2>
+      <h2 class="text-xs font-bold tracking-[0.2em] text-gray-500 mb-6 uppercase">02. Select Date & Time</h2>
       
       <div class="mb-4 text-center">
         <span class="text-lg font-medium tracking-widest text-gray-900">
@@ -72,12 +72,12 @@ export const CalendarSection = (
                    data-available="${isAvailable ? 'true' : 'false'}">
                 
                 ${showMonthLabel ? html`
-                  <span class="absolute top-1.5 left-1.5 text-[9px] font-bold tracking-tighter text-gray-400 opacity-60">
+                  <span class="absolute top-1.5 left-1.5 text-[9px] font-bold tracking-tighter text-gray-500 opacity-60">
                     ${m}/
                   </span>
                 ` : ''}
 
-                <span class="text-sm ${day.isCurrentMonth ? 'text-gray-900 font-medium' : 'text-gray-300'} 
+                <span class="text-sm ${day.isCurrentMonth ? 'text-gray-900 font-medium' : 'text-gray-500'} 
                              ${day.isToday ? 'border-b-2 border-gray-900 pb-0.5' : ''}">
                   ${d}
                 </span>
@@ -99,12 +99,12 @@ export const CalendarSection = (
 
         <div id="slot-list" class="bg-gray-50 border border-dashed border-gray-200 rounded-sm p-8 text-center">
           ${hasAnySlots 
-            ? html`<p class="text-[10px] text-gray-400 italic font-medium tracking-wider">Please select a date on the calendar.</p>`
+            ? html`<p class="text-[10px] text-gray-500 italic font-medium tracking-wider">Please select a date on the calendar.</p>`
             : html`
                 <div class="flex flex-col items-center gap-2">
-                  <i class="fa-regular fa-calendar-xmark text-gray-300 text-lg"></i>
+                  <i class="fa-regular fa-calendar-xmark text-gray-500 text-lg"></i>
                   <p class="text-[11px] text-gray-500 font-bold tracking-widest">現在、受付可能な予約枠はありません。</p>
-                  <p class="text-[9px] text-gray-400 uppercase">No available slots at the moment.</p>
+                  <p class="text-[9px] text-gray-500 uppercase">No available slots at the moment.</p>
                 </div>
               `
           }

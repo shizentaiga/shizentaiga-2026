@@ -56,13 +56,13 @@ export const Services = () => {
       
       <header class="bg-white py-12 text-center border-b border-gray-100">
         <h1 class="text-xl font-medium tracking-[0.2em] uppercase text-gray-900">Service Booking</h1>
-        <p class="text-[10px] text-gray-400 mt-2 tracking-widest">PRIVATE CONSULTATION</p>
+        <p class="text-[10px] text-gray-500 mt-2 tracking-widest">PRIVATE CONSULTATION</p>
       </header>
 
       <div class="max-w-3xl mx-auto p-6">
         
         <section class="mb-12">
-          <h2 class="text-xs font-bold tracking-[0.2em] text-gray-400 mb-6 uppercase">01. Select Plan</h2>
+          <h2 class="text-xs font-bold tracking-[0.2em] text-gray-500 mb-6 uppercase">01. Select Plan</h2>
           ${ServicePlanList(BUSINESS_INFO.services)}
         </section>
 
@@ -129,7 +129,7 @@ export const Services = () => {
                       <p class="text-[11px] text-gray-500 font-bold tracking-widest">
                         ご指定の日付（\${selectedDate}）に現在予約枠はありません。
                       </p>
-                      <p class="text-[9px] text-gray-400 uppercase mt-1">No available slots for this date.</p>
+                      <p class="text-[9px] text-gray-500 uppercase mt-1">No available slots for this date.</p>
                     </div>
                   \`;
                 }, 800);

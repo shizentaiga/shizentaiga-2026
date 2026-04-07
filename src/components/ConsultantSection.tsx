@@ -14,7 +14,7 @@ import { html } from 'hono/html'
  */
 export const ConsultantSection = () => html`
   <section class="mb-12 bg-white p-8 border border-gray-100 shadow-sm rounded-sm">
-    <h2 class="text-xs font-bold tracking-[0.2em] text-gray-400 mb-6 uppercase">
+    <h2 class="text-xs font-bold tracking-[0.2em] text-gray-500 mb-6 uppercase">
       03. Consultant
     </h2>
 
