@@ -4,221 +4,221 @@
  * 明朝体をベースとした信頼感のあるデザインと、PSI（アクセシビリティ・LCP）最適化を両立します。
  */
 
+/* --- Tailwind Layers Setup --- */
+@import "tailwindcss"; /* これだけで v4 では OK です */
+
 /* ---------------------------------------
     1. Base Typography & Reset
 --------------------------------------- */
-:root {
-    --primary-color: #1a1a1a;
-    --accent-blue: #2c5282; /* 予約システム共通アクセントカラー */
-    --text-main: #2b2b2b;
-    --text-muted: #4a4a4a; /* PSI対策: #555からコントラストを強化 */
-    --bg-base: #fcfcfc;
-}
+@layer base {
+    :root {
+        --primary-color: #1a1a1a;
+        --accent-blue: #2c5282; /* 予約システム共通アクセントカラー */
+        --text-main: #2b2b2b;
+        --text-muted: #4a4a4a; /* PSI対策: #555からコントラストを強化 */
+        --bg-base: #fcfcfc;
+    }
 
-body {
-    margin: 0;
-    padding: 0;
-    background-color: var(--bg-base);
-    color: var(--text-main);
-    font-size: 16px;
-    /* フォント：Mac/Win/iOSで明朝体を安定させるスタック */
-    font-family: "游明朝", "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "MS PMincho", serif;
-    line-height: 1.8;
-    -webkit-font-smoothing: antialiased;
-}
+    body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-base);
+        color: var(--text-main);
+        font-size: 16px;
+        /* フォント：Mac/Win/iOSで明朝体を安定させるスタック */
+        font-family: "游明朝", "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "MS PMincho", serif;
+        line-height: 1.8;
+        -webkit-font-smoothing: antialiased;
+    }
 
-/* ---------------------------------------
-    2. Layout (LCP/CLS Optimization)
---------------------------------------- */
-.container {
-    width: 92%; 
-    /* 読みやすさを考慮し、一行の文字数が多すぎない幅に制限 */
-    max-width: clamp(320px, 50vw, 540px); 
-    margin: 0 auto;
-    padding: 100px 0;
-}
+    header {
+        margin-bottom: 60px;
+        text-align: center;
+    }
 
-header {
-    margin-bottom: 60px;
-    text-align: center;
-}
+    h1 {
+        font-weight: 500;
+        font-size: clamp(1.8rem, 5vw, 2.2rem); /* スマホ対応の可変フォントサイズ */
+        letter-spacing: 0.2rem;
+        margin-bottom: 0.5rem;
+        color: var(--primary-color);
+    }
 
-h1 {
-    font-weight: 500;
-    font-size: clamp(1.8rem, 5vw, 2.2rem); /* スマホ対応の可変フォントサイズ */
-    letter-spacing: 0.2rem;
-    margin-bottom: 0.5rem;
-    color: var(--primary-color);
-}
+    h2 {
+        font-size: 1.2rem;
+        font-weight: 500;
+        border-left: 1px solid var(--primary-color);
+        padding-left: 15px;
+        margin-bottom: 30px;
+        letter-spacing: 0.1rem;
+    }
 
-.subtitle {
-    display: block;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    letter-spacing: 0.3rem;
-    text-transform: uppercase;
-    margin-top: 0.8rem;
-}
+    img {
+        display: block;
+        width: 100%;
+        height: auto;
+        object-fit: cover;
+        border-radius: 2px;
+    }
 
-section { 
-    margin-bottom: 80px; 
-}
-
-h2 {
-    font-size: 1.2rem;
-    font-weight: 500;
-    border-left: 1px solid var(--primary-color);
-    padding-left: 15px;
-    margin-bottom: 30px;
-    letter-spacing: 0.1rem;
+    section { 
+        margin-bottom: 80px; 
+    }
 }
 
 /* ---------------------------------------
-    3. Media & Assets
+    2. Layout & Components
 --------------------------------------- */
-.profile-image-area {
-    margin-bottom: 30px;
-    background-color: #f0f0f0; 
-    aspect-ratio: 3 / 4; /* 画像読み込み前のガタつき（CLS）を防止 */
-    max-width: 280px; 
-    margin-left: auto;
-    margin-right: auto;
-}
+@layer components {
+    .container {
+        width: 92%; 
+        /* 読みやすさを考慮し、一行の文字数が多すぎない幅に制限 */
+        max-width: clamp(320px, 50vw, 540px); 
+        margin: 0 auto;
+        padding: 100px 0;
+    }
 
-img {
-    display: block;
-    width: 100%;
-    height: auto;
-    object-fit: cover;
-    border-radius: 2px;
-}
+    .subtitle {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        letter-spacing: 0.3rem;
+        text-transform: uppercase;
+        margin-top: 0.8rem;
+    }
 
-/* ---------------------------------------
-    4. Interactive Elements
---------------------------------------- */
-.btn {
-    display: inline-block;
-    padding: 12px 34px;
-    border: 1px solid var(--primary-color);
-    color: var(--primary-color);
-    text-decoration: none;
-    font-size: 0.9rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    background: transparent;
-}
+    /* 3. Media & Assets */
+    .profile-image-area {
+        margin-bottom: 30px;
+        background-color: #f0f0f0; 
+        aspect-ratio: 3 / 4; /* 画像読み込み前のガタつき（CLS）を防止 */
+        max-width: 280px; 
+        margin-left: auto;
+        margin-right: auto;
+    }
 
-.btn:hover {
-    background-color: var(--primary-color);
-    color: #fff;
-}
+    /* 4. Interactive Elements */
+    .btn {
+        display: inline-block;
+        padding: 12px 34px;
+        border: 1px solid var(--primary-color);
+        color: var(--primary-color);
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: transparent;
+    }
 
-.link-list {
-    list-style: none;
-    padding: 0;
-}
+    .btn:hover {
+        background-color: var(--primary-color);
+        color: #fff;
+    }
 
-.link-list li { 
-    margin-bottom: 1.2rem; 
-}
+    .link-list {
+        list-style: none;
+        padding: 0;
+    }
 
-.link-list a {
-    color: var(--primary-color);
-    text-underline-offset: 4px;
-    transition: opacity 0.2s;
-}
+    .link-list li { 
+        margin-bottom: 1.2rem; 
+    }
 
-.link-list a:hover {
-    opacity: 0.7;
-}
+    .link-list a {
+        color: var(--primary-color);
+        text-underline-offset: 4px;
+        transition: opacity 0.2s;
+    }
 
-/* ---------------------------------------
-    5. Booking Components (Services UI)
-    ※Services.tsx での Tailwind 適用と競合しないよう詳細度を調整
---------------------------------------- */
-/* 選択カードの共通設計 */
-.selection-card {
-    border: 1px solid #e5e7eb;
-    transition: all 0.2s ease-in-out;
-    background: #fff;
-}
+    .link-list a:hover {
+        opacity: 0.7;
+    }
 
-.selection-card[data-selected="true"] {
-    border: 2px solid var(--accent-blue) !important; /* Tailwindのボーダー幅を上書き */
-    background: rgba(248, 250, 252, 0.95);
-}
+    /* 5. Booking Components (Services UI) */
+    /* 選択カードの共通設計 */
+    .selection-card {
+        border: 1px solid #e5e7eb;
+        transition: all 0.2s ease-in-out;
+        background: #fff;
+    }
 
-.selection-card:hover {
-    border-color: var(--accent-blue);
-}
+    .selection-card[data-selected="true"] {
+        border: 2px solid var(--accent-blue) !important; /* Tailwindのボーダー幅を上書き */
+        background: rgba(248, 250, 252, 0.95);
+    }
 
-/* カレンダー専用パーツ */
-.status-dot {
-    width: 6px; 
-    height: 6px; 
-    border-radius: 50%; 
-    background: var(--accent-blue);
-}
+    .selection-card:hover {
+        border-color: var(--accent-blue);
+    }
 
-.available-mark {
-    width: 4px; 
-    height: 4px; 
-    border-radius: 50%; 
-    background: var(--accent-blue);
-    margin-top: 4px;
-}
+    /* カレンダー専用パーツ */
+    .status-dot {
+        width: 6px; 
+        height: 6px; 
+        border-radius: 50%; 
+        background: var(--accent-blue);
+    }
 
-.calendar-day-cell[data-selected="true"] {
-    background-color: #f8fafc;
-    box-shadow: inset 0 0 0 2px var(--accent-blue);
-    z-index: 10;
-}
+    .available-mark {
+        width: 4px; 
+        height: 4px; 
+        border-radius: 50%; 
+        background: var(--accent-blue);
+        margin-top: 4px;
+    }
 
-/* ---------------------------------------
-    6. Footer & Legal
---------------------------------------- */
-footer {
-    margin-top: 120px;
-    padding-bottom: 40px;
-    text-align: center;
-    font-size: 0.75rem;
-}
+    .calendar-day-cell[data-selected="true"] {
+        background-color: #f8fafc;
+        box-shadow: inset 0 0 0 2px var(--accent-blue);
+        z-index: 10;
+    }
 
-footer p {
-    color: var(--text-muted);
-}
+    /* 6. Footer & Legal */
+    footer {
+        margin-top: 120px;
+        padding-bottom: 40px;
+        text-align: center;
+        font-size: 0.75rem;
+    }
 
-.footer-link {
-    color: var(--text-muted);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-}
+    footer p {
+        color: var(--text-muted);
+    }
 
-.footer-link:hover {
-    color: var(--primary-color);
-}
+    .footer-link {
+        color: var(--text-muted);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
 
-/* メールアドレスのコピー容易性 */
-.selectable-email {
-    user-select: all;
-    -webkit-user-select: all;
-    color: var(--primary-color);
-    border-bottom: 1px dotted var(--text-muted);
-    cursor: text;
-    padding: 2px 4px;
-    background-color: rgba(0,0,0,0.03);
+    .footer-link:hover {
+        color: var(--primary-color);
+    }
+
+    /* メールアドレスのコピー容易性 */
+    .selectable-email {
+        user-select: all;
+        -webkit-user-select: all;
+        color: var(--primary-color);
+        border-bottom: 1px dotted var(--text-muted);
+        cursor: text;
+        padding: 2px 4px;
+        background-color: rgba(0,0,0,0.03);
+    }
 }
 
 /* ---------------------------------------
     7. Utilities
 --------------------------------------- */
-.pc-only { display: none; }
+@layer utilities {
+    .pc-only { display: none; }
 
-@media (min-width: 768px) {
-    .pc-only { display: inline; }
-}
+    @media (min-width: 768px) {
+        .pc-only { display: inline; }
+    }
 
-@media (max-width: 600px) {
-    .container { padding: 60px 0; }
+    @media (max-width: 600px) {
+        .container { padding: 60px 0; }
+    }
 }
 
 /**
