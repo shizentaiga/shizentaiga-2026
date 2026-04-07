@@ -10,7 +10,11 @@
  */
 
 import { Hono } from 'hono'
-import { serveStatic } from 'hono/cloudflare-workers'
+
+// 修正後（環境を選ばない汎用版）
+import { serveStatic } from 'hono/serve-static'
+// import { serveStatic } from 'hono/cloudflare-workers'
+
 import { renderer } from './renderer' 
 import { Top } from './pages/Top'     
 import { Legal } from './pages/Legal' 
