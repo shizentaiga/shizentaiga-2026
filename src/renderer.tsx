@@ -30,13 +30,18 @@ declare module 'hono' {
  * 2. 共通レンダラー本体
  * 全ページで共有される HTML 構造を定義します。
  */
-export const renderer = jsxRenderer(({ children, title, description, ogImage, canonical }) => {
+/* 修正箇所1: 引数に 'c' (Context) を追加し、現在のURLを取得可能にします */
+export const renderer = jsxRenderer(({ children, title, description, ogImage, canonical }, c) => {
   
   // --- サイト全体の基本設定（Single Source of Truth への移行準備） ---
   const siteName = "清善 泰賀 | Taiga Shizen Official"
   const defaultDesc = "自然科学と数理モデルを基盤に、経営の盲点を外側から観測する個別診断を提供。"
   const defaultOgImage = "https://shizentaiga.com/images/og-p.webp"
   const baseUrl = "https://shizentaiga.com"
+
+  /* 修正箇所2: SEO改善。Lighthouseで指摘された「Canonicalがルート固定」問題を解決。
+     個別指定がない場合、現在のパスを自動付与して正規URLを生成します。 */
+  const currentFullUrl = canonical || `${baseUrl}${c.req.path}`
 
   return (
     <html lang="ja">
@@ -51,7 +56,9 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
         */}
         <title>{title ? `${title} | ${siteName}` : siteName}</title>
         <meta name="description" content={description || defaultDesc} />
-        <link rel="canonical" href={canonical || baseUrl} />
+        
+        {/* 修正箇所3: 動的に生成した URL を適用（SEOスコアが向上します） */}
+        <link rel="canonical" href={currentFullUrl} />
 
         {/* SNS (OGP) 設定 */}
         <meta property="og:title" content={title || siteName} />
@@ -64,14 +71,19 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
           ViteClient を削除すると、開発時の自動更新（ホットリロード）が止まるため必須です。
         */}
         <ViteClient />
-        <Link href="/src/style.css" rel="stylesheet" />
+
+        {/* 修正箇所4: デザイン崩れ対策。
+            Tailwind v4 のビルド済み CSS を標準の link タグで確実に読み込みます。
+            これにより Services.tsx 側の外部 CDN (script) を削除してもデザインが維持されます。 */}
+        <link rel="stylesheet" href="/src/style.css" />
+        
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body>
-        {/* メインコンテンツの挿入位置 */}
-        <div className="container">
-          {children}
-        </div>
+        {/* 修正箇所5: 余計な .container クラスを除去。
+            Tailwind の container クラスによる意図しない中央寄せや幅制限を防ぎ、
+            Services.tsx 側で定義した自由なレイアウトをそのまま反映させます。 */}
+        {children}
       </body>
     </html>
   )

@@ -38,7 +38,6 @@ export const Services = () => {
   /* -------------------------------------------------------------------------- */
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
       /* 選択状態や装飾に関する Critical CSS */
