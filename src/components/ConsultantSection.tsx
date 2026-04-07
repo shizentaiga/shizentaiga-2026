@@ -14,14 +14,14 @@ import { html } from 'hono/html'
  */
 export const ConsultantSection = () => html`
   <section class="mb-12 bg-white p-8 border border-gray-100 shadow-sm rounded-sm">
-    <h2 class="text-xs font-bold tracking-[0.2em] text-gray-500 mb-6 uppercase">
+    <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">
       03. Consultant
     </h2>
 
     <div class="flex items-start gap-6">
       <div class="flex-1">
         <strong class="text-lg font-bold text-gray-900">清善 泰賀</strong>
-        <p class="text-[10px] text-[#2c5282] font-bold tracking-widest mt-1 uppercase">
+        <p class="text-[11px] text-[#2c5282] font-bold tracking-widest mt-1 uppercase">
           Management Consultant
         </p>
 

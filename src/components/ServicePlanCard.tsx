@@ -36,7 +36,7 @@ export const ServicePlanList = (services: readonly any[]) => html`
             <span class="text-base font-bold text-gray-900">
               ${isRetainer ? '要相談' : `¥${s.price.toLocaleString()}`}
             </span>
-            <span class="block text-[10px] text-gray-500 uppercase mt-1">
+            <span class="block text-[11px] text-gray-600 uppercase mt-1">
               ${s.duration}${s.suffix || ''}
             </span>
           </div>
