@@ -36,6 +36,15 @@
     ├── db/                # 【記憶】データベース操作 (D1 / SQLite)
     │   ├── schema.sql     # テーブル定義（slots, processed_events 等）
     │   └── queries.ts     # 予約枠の取得・更新ロジック
+    (追加)
+    src/
+    ├── lib/
+    │   ├── calendar-logic.ts  <-- 【新規】カレンダーの日付計算・曜日判定ロジック
+    │   └── google-cal.ts
+    ├── pages/
+    │   └── Services.tsx       <-- 【修正】計算結果を受け取って描画するだけに専念
+    └── components/
+        └── CalendarGrid.tsx   <-- 【新規】カレンダー部分の見た目（コンポーネント化）    
 
 ## 🛠️ 技術スタック
 - **Framework**: [Hono](https://hono.dev/) v4.x (TypeScript)
