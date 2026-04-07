@@ -10,7 +10,7 @@ import { html } from 'hono/html'
  * BookingFooter コンポーネント
  */
 export const BookingFooter = () => html`
-  <div class="fixed bottom-0 w-full bg-white/95 backdrop-blur-md py-6 border-t border-gray-200 z-[100]">
+  <div class="fixed bottom-0 w-full bg-white/95 backdrop-blur-md py-6 border-t border-gray-200 z-100">
     <div class="max-w-3xl mx-auto px-6 flex justify-between items-center">
       <div class="summary">
         <div class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-tighter">Current Plan</div>

@@ -66,7 +66,7 @@ export const CalendarSection = (
             const showMonthLabel = d === 1 || day.isFirstDayOfGrid;
 
             return html`
-              <div class="calendar-day-cell bg-white group relative min-h-[70px] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shadow-[0_0_0_0.5px_#f3f4f6]"
+              <div class="calendar-day-cell bg-white group relative min-h-70px flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shadow-[0_0_0_0.5px_#f3f4f6]"
                    data-date="${isoDateStr}"
                    data-selected="${isSelected ? 'true' : 'false'}"
                    data-available="${isAvailable ? 'true' : 'false'}">
