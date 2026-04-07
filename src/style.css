@@ -1,28 +1,41 @@
+/**
+ * @file style.css
+ * @description サイト全体の基本スタイルと、予約システム独自のコンポーネント定義。
+ * 明朝体をベースとした信頼感のあるデザインと、PSI（アクセシビリティ・LCP）最適化を両立します。
+ */
+
 /* ---------------------------------------
-    General Styles
+    1. Base Typography & Reset
 --------------------------------------- */
+:root {
+    --primary-color: #1a1a1a;
+    --accent-blue: #2c5282; /* 予約システム共通アクセントカラー */
+    --text-main: #2b2b2b;
+    --text-muted: #4a4a4a; /* PSI対策: #555からコントラストを強化 */
+    --bg-base: #fcfcfc;
+}
+
 body {
     margin: 0;
     padding: 0;
-    background-color: #fcfcfc;
-    color: #2b2b2b;
+    background-color: var(--bg-base);
+    color: var(--text-main);
     font-size: 16px;
-    font-family: "游明朝", YuMincho, "ヒラギノ明朝 ProN W3", "Hiragino Mincho ProN", "MS PMincho", serif;
+    /* フォント：Mac/Win/iOSで明朝体を安定させるスタック */
+    font-family: "游明朝", "Yu Mincho", YuMincho, "Hiragino Mincho ProN", "MS PMincho", serif;
     line-height: 1.8;
     -webkit-font-smoothing: antialiased;
 }
 
+/* ---------------------------------------
+    2. Layout (LCP/CLS Optimization)
+--------------------------------------- */
 .container {
-    /* clamp(最小値, 推奨値, 最大値) で動的に幅を定義 */
     width: 92%; 
+    /* 読みやすさを考慮し、一行の文字数が多すぎない幅に制限 */
     max-width: clamp(320px, 50vw, 540px); 
     margin: 0 auto;
-    padding: 100px 0; /* 左右のパディングを0にして、幅の制御をmax-widthに一任 */
-}
-
-@media (max-width: 600px) {
-    /* .container のパディング修正は不要になったため削除 */
-    h1 { font-size: 1.8rem; }
+    padding: 100px 0;
 }
 
 header {
@@ -32,48 +45,41 @@ header {
 
 h1 {
     font-weight: 500;
-    font-size: 2.2rem;
+    font-size: clamp(1.8rem, 5vw, 2.2rem); /* スマホ対応の可変フォントサイズ */
     letter-spacing: 0.2rem;
     margin-bottom: 0.5rem;
+    color: var(--primary-color);
 }
 
-/* ---------------------------------------
-    Sections & Components
---------------------------------------- */
 .subtitle {
-    display: block;       /* これを追加：強制的に改行させます */
-    font-size: 0.9rem;
-    color: #555555;
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
     letter-spacing: 0.3rem;
     text-transform: uppercase;
-    margin-top: 0.5rem;   /* これを追加：名前との「行間」を調整します */
+    margin-top: 0.8rem;
 }
 
-section { margin-bottom: 80px; }
+section { 
+    margin-bottom: 80px; 
+}
 
 h2 {
     font-size: 1.2rem;
     font-weight: 500;
-    border-left: 1px solid #1a1a1a;
+    border-left: 1px solid var(--primary-color);
     padding-left: 15px;
     margin-bottom: 30px;
     letter-spacing: 0.1rem;
 }
 
-hr {
-    border: 0;
-    border-top: 1px solid #eee;
-    margin: 60px 0;
-}
-
 /* ---------------------------------------
-    Profile Image (LCP & CLS Optimization)
+    3. Media & Assets
 --------------------------------------- */
 .profile-image-area {
     margin-bottom: 30px;
     background-color: #f0f0f0; 
-    aspect-ratio: 3 / 4;
-    /* 写真自体の最大幅を少し絞り、テキストとの親和性を高めます */
+    aspect-ratio: 3 / 4; /* 画像読み込み前のガタつき（CLS）を防止 */
     max-width: 280px; 
     margin-left: auto;
     margin-right: auto;
@@ -88,20 +94,21 @@ img {
 }
 
 /* ---------------------------------------
-    Buttons & Links
+    4. Interactive Elements
 --------------------------------------- */
 .btn {
     display: inline-block;
-    padding: 12px 30px;
-    border: 1px solid #1a1a1a;
-    color: #1a1a1a;
+    padding: 12px 34px;
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
     text-decoration: none;
     font-size: 0.9rem;
-    transition: all 0.3s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent;
 }
 
 .btn:hover {
-    background-color: #1a1a1a;
+    background-color: var(--primary-color);
     color: #fff;
 }
 
@@ -110,90 +117,118 @@ img {
     padding: 0;
 }
 
-.link-list li { margin-bottom: 15px; }
+.link-list li { 
+    margin-bottom: 1.2rem; 
+}
 
 .link-list a {
-    color: #1a1a1a;
-    text-decoration: underline;
+    color: var(--primary-color);
     text-underline-offset: 4px;
+    transition: opacity 0.2s;
+}
+
+.link-list a:hover {
+    opacity: 0.7;
 }
 
 /* ---------------------------------------
-    Footer & Contact (Refined for Accessibility)
+    5. Booking Components (Services UI)
+    ※Services.tsx での Tailwind 適用と競合しないよう詳細度を調整
+--------------------------------------- */
+/* 選択カードの共通設計 */
+.selection-card {
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s ease-in-out;
+    background: #fff;
+}
+
+.selection-card[data-selected="true"] {
+    border: 2px solid var(--accent-blue) !important; /* Tailwindのボーダー幅を上書き */
+    background: rgba(248, 250, 252, 0.95);
+}
+
+.selection-card:hover {
+    border-color: var(--accent-blue);
+}
+
+/* カレンダー専用パーツ */
+.status-dot {
+    width: 6px; 
+    height: 6px; 
+    border-radius: 50%; 
+    background: var(--accent-blue);
+}
+
+.available-mark {
+    width: 4px; 
+    height: 4px; 
+    border-radius: 50%; 
+    background: var(--accent-blue);
+    margin-top: 4px;
+}
+
+.calendar-day-cell[data-selected="true"] {
+    background-color: #f8fafc;
+    box-shadow: inset 0 0 0 2px var(--accent-blue);
+    z-index: 10;
+}
+
+/* ---------------------------------------
+    6. Footer & Legal
 --------------------------------------- */
 footer {
-    margin-top: 100px;
+    margin-top: 120px;
+    padding-bottom: 40px;
     text-align: center;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
 }
 
-/* 文字色を少し濃いめの #555555 に統一（コントラスト比確保） */
-.container footer p, 
-.container footer p small {
-    color: #555555;
+footer p {
+    color: var(--text-muted);
 }
 
-/* 特商法リンク専用のスタイル */
 .footer-link {
-    color: #555555; /* 周囲の文字と色を合わせる */
-    text-decoration: underline; /* リンクであることを明示（アクセシビリティ配慮） */
+    color: var(--text-muted);
+    text-decoration: underline;
     text-underline-offset: 3px;
-    transition: color 0.3s;
 }
 
 .footer-link:hover {
-    color: #1a1a1a; /* ホバー時にのみ濃くする */
+    color: var(--primary-color);
 }
 
-.container footer .selectable-email {
+/* メールアドレスのコピー容易性 */
+.selectable-email {
     user-select: all;
     -webkit-user-select: all;
-    color: #1a1a1a; 
-    border-bottom: 1px dotted #555555;
+    color: var(--primary-color);
+    border-bottom: 1px dotted var(--text-muted);
     cursor: text;
     padding: 2px 4px;
-    background-color: rgba(0,0,0,0.02);
-    border-radius: 2px;
+    background-color: rgba(0,0,0,0.03);
 }
 
 /* ---------------------------------------
-    Utilities
+    7. Utilities
 --------------------------------------- */
-.pc-only {
-    display: none;
-}
+.pc-only { display: none; }
 
 @media (min-width: 768px) {
-    .pc-only {
-        display: inline;
-    }
+    .pc-only { display: inline; }
 }
 
-
-
-/* 選択カードの基本スタイル */
-.selection-card {
-  border: 1px solid #e5e7eb;
-  transition: all 0.2s ease;
-}
-.selection-card[data-selected="true"] {
-  border: 2px solid #2c5282;
-  background: rgba(249, 250, 251, 0.9);
-}
-.selection-card:hover {
-  border-color: #2c5282;
+@media (max-width: 600px) {
+    .container { padding: 60px 0; }
 }
 
-/* カレンダー関連 */
-.status-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: #2c5282;
-}
-.available-mark {
-  width: 4px; height: 4px; border-radius: 50%; background: #2c5282;
-  margin-top: 2px;
-}
-.calendar-day-cell[data-selected="true"] {
-  background-color: #f8fafc;
-  box-shadow: inset 0 0 0 2px #2c5282;
-  z-index: 10;
-}
+/**
+ * 【メンテナンス時の注意事項】
+ * 1. デザインの整合性:
+ * 青系のアクセントカラーを変更する場合は --accent-blue を一括修正してください。
+ * 2. Tailwindとの競合:
+ * Tailwind のクラス (border-2 など) が優先されない場合は、本ファイルのセレクタに 
+ * html もしくは body を前置して詳細度を上げてください。
+ * 3. フォントの読み込み:
+ * 明朝体が適用されない Windows ユーザー向けに、必要に応じて Google Fonts の 
+ * Noto Serif JP をフォールバックに追加することを検討してください。
+ */
