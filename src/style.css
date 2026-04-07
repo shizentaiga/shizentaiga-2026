@@ -168,3 +168,32 @@ footer {
         display: inline;
     }
 }
+
+
+
+/* 選択カードの基本スタイル */
+.selection-card {
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+.selection-card[data-selected="true"] {
+  border: 2px solid #2c5282;
+  background: rgba(249, 250, 251, 0.9);
+}
+.selection-card:hover {
+  border-color: #2c5282;
+}
+
+/* カレンダー関連 */
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #2c5282;
+}
+.available-mark {
+  width: 4px; height: 4px; border-radius: 50%; background: #2c5282;
+  margin-top: 2px;
+}
+.calendar-day-cell[data-selected="true"] {
+  background-color: #f8fafc;
+  box-shadow: inset 0 0 0 2px #2c5282;
+  z-index: 10;
+}
