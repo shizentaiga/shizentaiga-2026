@@ -84,6 +84,22 @@ export const Services = () => {
 
       ${BookingFooter()}
 
+      <script type="module">
+        // ブラウザからアクセス可能なパスを指定してください
+        // Vite環境であれば通常は src からのフルパスで動作します
+        import { initBookingInteraction } from '/src/client/booking-interaction.ts';
+
+        // DOMの構築が完了してから実行
+        document.addEventListener('DOMContentLoaded', () => {
+          try {
+            initBookingInteraction();
+            console.log('[System] Booking interaction initialized.');
+          } catch (error) {
+            console.error('[System] Failed to initialize interaction:', error);
+          }
+        });
+      </script>
+
     </body>
   `
 }

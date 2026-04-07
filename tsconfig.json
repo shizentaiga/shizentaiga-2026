@@ -2,12 +2,10 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"], /* ← ここに DOM 関連を追加 */
     "moduleResolution": "Bundler",
     "strict": true,
     "skipLibCheck": true,
-    "lib": [
-      "ESNext"
-    ],
     "types": [
       "@cloudflare/workers-types",
       "@cloudflare/vitest-pool-workers",
