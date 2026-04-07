@@ -48,7 +48,8 @@ src/
 ├── components/             # 【部品】再利用可能・または巨大化したパーツの切り出し
 │   ├── Header.tsx          # 共通ナビゲーション
 │   ├── Footer.tsx          # 共通フッター
-│   ├── CalendarSection.tsx # ★新規：日時選択（グリッド描画・時間スロット表示）
+│   ├── CalendarSection.tsx # 親：カレンダー全体のレイアウト
+│   └── SlotItem.tsx        # 子：個別の予約枠（デザイナー編集用）
 │   ├── ServicePlanCard.tsx # ★新規：プラン選択の各カード
 │   └── BookingFooter.tsx   # ★新規：画面下部の固定金額・予約ボタン
 │
