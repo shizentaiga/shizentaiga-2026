@@ -1,11 +1,8 @@
 /**
  * @file Services.tsx
  * @description サービス予約ページのメインレイアウト。
- * 各コンポーネントを統合し、開発/本番環境に応じたクライアントスクリプトを配信します。
- * ※以下は、本番環境でのブラウザキャッシュ対策用バージョン（デプロイごとに更新推奨）
- * const assetVersion = "20260407-v1";
+ * 各コンポーネントを統合し、クライアントスクリプトを配信します。
  */
-
 
 import { html } from 'hono/html'
 
@@ -36,16 +33,7 @@ export const Services = () => {
   const currentMonth = baseDate.getMonth() + 1;
 
   /* -------------------------------------------------------------------------- */
-  /* 2. ENVIRONMENT & ASSETS CONFIGURATION
-  /* -------------------------------------------------------------------------- */
-  // Viteの環境変数を使用して、開発モード（TS直接読み込み）か本番モード（ビルド済みJS）かを判定
-  const isDev = import.meta.env.DEV;
-  
-  // 本番環境でのブラウザキャッシュ対策用バージョン（デプロイごとに更新推奨）
-  const assetVersion = "20260407-v1";
-
-  /* -------------------------------------------------------------------------- */
-  /* 3. RENDERING
+  /* 2. RENDERING
   /* -------------------------------------------------------------------------- */
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
@@ -94,10 +82,7 @@ export const Services = () => {
 
       ${BookingFooter()}
 
-      ${isDev 
-        ? html`<script type="module" src="/src/client/booking-interaction.ts"></script>`
-        : html`<script type="module" src="/static/js/booking-interaction.js?v=${assetVersion}"></script>`
-      }
+      <script type="module" src="/src/client/booking-interaction.ts"></script>
 
     </body>
   `
