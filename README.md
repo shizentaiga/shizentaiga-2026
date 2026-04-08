@@ -31,39 +31,44 @@
 
 ## 📂 ファイル構成 (Architecture)
 
-修正時の参照ガイドとして活用すること。
-
 ~~~
 src/
-├── index.tsx               # 【司令塔】ルーティング・エントリポイント
-├── renderer.tsx            # 【共通の額縁】HTML基盤・SEO・外部資産管理
-├── style.css               # 【外観】共通デザイン・独自クラス (PSI対策済み)
+├── index.tsx                # 【司令塔】ルーティング・エントリポイント
+├── renderer.tsx             # 【共通の額縁】HTML基盤・SEO・外部資産管理
+├── style.css                # 【外観】共通デザイン・独自クラス（PSI対策済み）
 │
-├── pages/                  # 【ページ本体】各画面のレイアウトを記述
-│   ├── Top.tsx             # トップページ
-│   ├── Services.tsx        # ★ コンポーネントを組み合わせて画面を構築
-│   ├── Legal.tsx           # 特定商取引法に基づく表記
-│   └── Thanks.tsx          # 完了ページ
+├── pages/                   # 【ページ本体】各画面のレイアウトを記述
+│   ├── Top.tsx
+│   ├── Services.tsx         # ★改修：DB連携対応、asyncによるサーバー描画
+│   └── (他：Legal.tsx, Thanks.tsx 等)
 │
-├── components/             # 【部品】再利用可能・または巨大化したパーツの切り出し
-│   ├── Header.tsx          # 共通ナビゲーション
-│   ├── Footer.tsx          # 共通フッター
-│   ├── CalendarSection.tsx # 親：カレンダー全体のレイアウト
-│   └── SlotItem.tsx        # 子：個別の予約枠（デザイナー編集用）
-│   ├── ServicePlanCard.tsx # ★新規：プラン選択の各カード
-│   └── BookingFooter.tsx   # ★新規：画面下部の固定金額・予約ボタン
+├── components/              # 【部品】再利用可能なパーツ
+│   ├── CalendarSection.tsx  # DBデータを受け取り、カレンダーを描画
+│   ├── ServicePlanCard.tsx  # プラン選択の各カード
+│   ├── BookingFooter.tsx    # 画面下部の固定金額・予約ボタン
+│   └── (他：Header, Footer, ConsultantSection 等)
 │
-├── lib/                    # 【ロジック】計算・通信・外部API
-│   ├── calendar-logic.ts   # カレンダーの日付・曜日計算
-│   ├── google-cal.ts       # Google カレンダー連携
-│   └── stripe.ts           # 決済処理
+├── lib/                     # 【ロジック】計算・通信・外部API
+│   ├── calendar-logic.ts    # カレンダーの日付・曜日計算
+│   └── stripe.ts            # Stripe Checkout 連携ロジック
 │
-├── constants/              # 【静的データ】
-│   └── info.ts             # サービス名・価格・住所・営業時間等のマスタ
+├── constants/               # 【静的データ】
+│   └── info.ts              # サービス名・価格・基本マスタ
 │
-└── db/                     # 【永続化】
-    ├── schema.sql          # D1 テーブル定義
-    └── queries.ts          # 予約データの CRUD 処理
+├── db/                      # 【永続化】
+│   ├── schema.sql           # D1 テーブル定義（v1.7準拠）
+│   └── booking-db.ts        # 予約枠専用：shizentaiga_db への安全なアクセス
+│
+└── _sandbox/                # 【実験場】本番環境から分離された検証エリア
+    ├── _bridge.ts           # ★新規：index.tsx との接続を管理する絶縁体
+    ├── _router.ts           # サンドボックス内ルーティング台帳
+    └── tests/               # 各種テスト用モジュール（01_xxx.ts〜順次追加）
+        └── (複数のテストファイルを順次保存)
+
+public/                      # 【静的資産】外部公開されるファイル群
+├── js/
+│   └── booking-logic.js     # フロントエンドの予約操作・UI制御
+└── (favicon.ico, robots.txt 等)
 ~~~
 
 ---
