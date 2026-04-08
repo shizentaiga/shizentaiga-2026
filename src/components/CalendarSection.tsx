@@ -43,7 +43,7 @@ export const CalendarSection = (
           `)}
         </div>
 
-        <div class="grid grid-cols-7 gap-[1px] bg-gray-100">
+        <div class="grid grid-cols-7 gap-px bg-gray-100">
           ${calendarDays.map((day) => {
             const dateObj = day.date;
             const y = dateObj.getFullYear();
@@ -65,7 +65,7 @@ export const CalendarSection = (
             const showMonthLabel = d === 1 || day.isFirstDayOfGrid;
 
             return html`
-              <div class="calendar-day-cell bg-white group relative aspect-square min-h-[65px] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all"
+              <div class="calendar-day-cell bg-white group relative aspect-square min-h-16 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all"
                    data-date="${isoDateStr}"
                    data-selected="${isSelected ? 'true' : 'false'}"
                    data-available="${isAvailable ? 'true' : 'false'}">
@@ -77,7 +77,7 @@ export const CalendarSection = (
                 ` : ''}
 
                 <span class="relative z-10 text-[13px] ${day.isCurrentMonth ? 'text-gray-900 font-medium' : 'text-gray-300'} 
-                             ${day.isToday ? 'after:content-[\'\'] after:absolute after:-bottom-0.5 after:left-0 after:w-full after:h-[1px] after:bg-gray-900' : ''}">
+                             ${day.isToday ? 'after:content-[\'\'] after:absolute after:-bottom-0.5 after:left-0 after:w-full after:h-px after:bg-gray-900' : ''}">
                   ${d}
                 </span>
 
