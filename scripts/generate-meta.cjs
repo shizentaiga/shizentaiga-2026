@@ -50,10 +50,14 @@ Sitemap: ${baseUrl}/sitemap.xml`;
 
 // 5. 実際にファイルを物理的に書き出す処理
 try {
+  // 修正前
+  // fs.writeFileSync('sitemap.xml', sitemap);
+
+  // 修正後（ビルド後の公開用フォルダへ直接書き込む）
   // サイトマップをルートディレクトリに書き出し
-  fs.writeFileSync('sitemap.xml', sitemap);
+  fs.writeFileSync('dist/client/sitemap.xml', sitemap);
   // robots.txt をルートディレクトリに書き出し
-  fs.writeFileSync('robots.txt', robots);
+  fs.writeFileSync('dist/client/robots.txt', robots);
   
   console.log(`[SUCCESS] Meta files generated for: ${baseUrl}`);
   console.log(`[INFO] lastmod is set to: ${lastMod}`);
