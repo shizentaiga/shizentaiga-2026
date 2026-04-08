@@ -16,7 +16,9 @@ test04.get('/', (c) => {
           Click Me!
         </button>
 
-        <script src="/static/scripts/test04_logic.js"></script>
+        // Vite/Cloudflareの標準ルールでは public 直下は / 直下として配信されます
+        <script src="/test04_logic.js"></script>
+
       </body>
     </html>
   `);
