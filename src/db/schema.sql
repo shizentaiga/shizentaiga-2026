@@ -1,5 +1,5 @@
 -- =========================================================================
--- 04_DATABASE_SCHEMA (Aletheia Core) v1.7
+-- 04_DATABASE_SCHEMA v1.7
 -- =========================================================================
 -- [実行コマンド / ローカル環境]
 -- npx wrangler d1 execute shizentaiga_db --local --file=./src/db/schema.sql
