@@ -20,9 +20,9 @@
 	},
 	"d1_databases": [
 		{
-			"binding": "DB",
-			"database_name": "shizentaiga-db",
-			"database_id": "0c5a2e2a-7c62-4e5e-b2a7-7fed50040126"
+			"binding": "shizentaiga_db",
+			"database_name": "shizentaiga_db",
+			"database_id": "fcb9efbe-33b8-4a48-884f-b0dd3afcfa60"
 		}
 	]
 }

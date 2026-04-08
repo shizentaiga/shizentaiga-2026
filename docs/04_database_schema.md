@@ -12,7 +12,7 @@
 
 | 項目 | 内容 |
 |---|---|
-| 論理名 | Aletheia Engine DB |
+| 論理名 | shizentaiga_db |
 | プラットフォーム | Cloudflare D1（SQLite） |
 | 時刻規約 | Unix Timestamp（10桁・秒単位）/ 日付文字列は JST 固定 |
 

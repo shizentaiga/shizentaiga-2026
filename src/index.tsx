@@ -1,21 +1,11 @@
 /* src/index.tsx
- * 【サイト運営の司令塔：ルーティングと共通管理】
- * ■ 運用コマンド（最短ルート）
- * 1. ローカル開発: `npm run dev`（ブラウザで http://localhost:5173 を確認）
- * 2. 本番公開(Wrangler): `npx wrangler deploy`（Cloudflare Workersへ即時反映）
- * ■ 経営・サービス視点での導入メリット：
- * ・運用コストの削減: 共通部分（ヘッダー/フッター/SEO設定）を一括管理し、修正漏れを防ぐ。
- * ・信頼性の担保: 法務情報（特商法）などを独立させ、更新性を高めることでコンプライアンスを維持。
- * ・拡張性: 新サービス追加時に、既存ページに影響を与えず迅速にページを増設可能。
+ * 【メインルーティング設定】
+ * ・Local: npm run dev / Deploy: npx wrangler deploy
+ * ・役割: 全ページの司令塔。共通レイアウトと各ページへの振分けを一括管理。
  */
 
-
 import { Hono } from 'hono'
-
-// 修正後（環境を選ばない汎用版）
 import { serveStatic } from 'hono/serve-static'
-// import { serveStatic } from 'hono/cloudflare-workers'
-
 import { renderer } from './renderer' 
 import { Top } from './pages/Top'     
 import { Legal } from './pages/Legal' 
@@ -23,62 +13,42 @@ import { Services } from './pages/Services'
 
 const app = new Hono()
 
-// @ts-ignore: Honoの型定義の不備を回避し、ランタイムの自動解決に任せる
+// --- ⭐️ 開発用サンドボックス（検証完了後に削除・コメントアウト可能） ---
+import sandboxBridge from './_sandbox/_bridge';
+app.route('/_debug', sandboxBridge);
+// ------------------------------------------------------------------
+
+// 静的ファイルの配信設定（@ts-ignore は Cloudflare Runtime との型不一致回避に必須）
+// @ts-ignore
 app.use('/static/*', serveStatic({ root: './' }))
 
-/**
- * ■ 共通レイアウト（renderer）の適用
- * なぜ renderer を使うのか？：
- * 全ページで「同じ見た目・同じSEO設定」を強制するためです。
- * ページごとに <html> や <meta> を書くと、1箇所変更するたびに全ファイルを修正する手間（＝人件費・ミス）が発生します。
- * ここで一括適用することで、サイト全体のブランドイメージと検索順位（SEO）を一元管理します。
- */
+// 全ページ共通のレイアウト(renderer)を適用
 app.all('*', renderer)
 
 /**
- * ■ ページ定義（ルーティング）
- * なぜページを Top.tsx や Legal.tsx に分けるのか？：
- * 「1つのファイルに1つの役割」を持たせる（単一責任の原則）ためです。
- * これにより、例えば「特商法の住所だけ変えたい」時に、誤ってトップページのデザインを壊すリスクをゼロにします。
+ * ページルーティング定義
+ * 各コンポーネントを特定のパスに紐付け、個別SEO設定を注入。
  */
 
-// 1. トップページ：集客の入り口
+// 1. トップページ
 app.get('/', (c) => {
-  // c.render() は renderer.tsx という「額縁」に Top という「絵」をはめ込むイメージです。
   return c.render(<Top />)
 })
 
-// 2. 特商法ページ：決済・信頼の基盤
+// 2. 特定商取引法に基づく表記
 app.get('/legal', (c) => {
-  /**
-   * 【技術的注意点（ハマりポイント）】
-   * 第2引数で title を渡すのを忘れると、ブラウザのタブにサイト名しか出ません。
-   * 「今どのページを見ているか」をユーザーと検索エンジンに正しく伝えるため、
-   * 個別ページでは必ず固有の title と description を設定するのが運用上の鉄則です。
-   */
   return c.render(<Legal />, { 
     title: 'Legal Information', 
     description: '特定商取引法に基づく表記、利用規約、プライバシーポリシー等の法務情報を掲載しています。' 
   })
 })
 
-// 3. サービス一覧・予約ページ（新規追加）
+// 3. サービス一覧・予約案内
 app.get('/services', (c) => {
-  /**
-   * 【運用の勘所】
-   * title は「Services | 清善 泰賀」のように、
-   * ブランド名を含めておくと、検索結果やブラウザのタブで識別しやすくなります。
-   */
   return c.render(<Services />, { 
     title: 'Services | 清善 泰賀', 
-    description: '個別経営診断、資金調達支援、顧問契約のプラン一覧と現在の予約空き状況をご案内します。' 
+    description: '個別経営診断、資金調達支援、顧問契約のプラン一覧と現在の予約状況をご案内します。' 
   })
 })
-
-/**
- * ■ 初級エンジニアが間違えやすいポイント：
- * ・パス（'/' や '/legal'）の先頭に '/' を付け忘れると、ページが表示されず 404 エラーになります。
- * ・新しいページを追加した際は、必ず上部の import 文を書き足さないと、プログラムが「そのページはどこ？」と迷子になります。
- */
 
 export default app
