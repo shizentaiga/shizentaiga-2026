@@ -7,22 +7,16 @@ test04.get('/', (c) => {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Script Test 04</title>
+        <title>Script Test 04 - External</title>
         <meta charset="UTF-8" />
       </head>
       <body>
-        <h1>Step 1: Inline Script Test</h1>
+        <h1>Step 2: External Script Test</h1>
         <button id="testButton" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
           Click Me!
         </button>
 
-        <script>
-          // 最もシンプルな動作確認
-          document.getElementById('testButton').addEventListener('click', () => {
-            alert('Hello World from Inline Script!');
-            console.log('Button clicked!');
-          });
-        </script>
+        <script src="/static/scripts/test04_logic.js"></script>
       </body>
     </html>
   `);
