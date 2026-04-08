@@ -1,9 +1,8 @@
 /**
  * @file Services.tsx
  * @description サービス予約ページのメインレイアウト。
- * コンポーネントの統合、および静的アセットとしての外部クライアントスクリプト（JS）の読み込みを行います。
- * * 以前はインラインで記述していたJSを外部ファイル化（booking-logic.js）することで、
- * 「構造（JSX）」と「振る舞い（JS）」を分離し、メンテナンス性を向上させています。
+ * Cloudflare D1データベースから取得した動的な予約枠と、静的なサービス情報を統合して表示します。
+ * 「構造（JSX）」と「振る舞い（JS）」を分離するため、クライアントサイドロジックは外部ファイル化しています。
  */
 
 import { html } from 'hono/html'
@@ -20,22 +19,49 @@ import { CalendarSection } from '../components/CalendarSection'
 import { ConsultantSection } from '../components/ConsultantSection'
 import { BookingFooter } from '../components/BookingFooter'
 
-export const Services = () => {
+/* --- DB ACCESS --- */
+import { getAvailableSlotsFromDB } from '../db/booking-db'
+
+/**
+ * サービス予約ページのメインコンポーネント
+ * @param c Honoのコンテキスト。D1接続バインディング（shizentaiga_db）を含む環境変数を参照します。
+ */
+export const Services = async (c: any) => {
   /* -------------------------------------------------------------------------- */
-  /* 1. DATA PREPARATION
+  /* 1. DATA PREPARATION (データ準備)
   /* -------------------------------------------------------------------------- */
-  const baseDate = new Date();
-  const calendarDays = generateCalendarData(baseDate);
   
-  // 予約可能な最短の日付を特定（初期表示時のUI状態に利用）
-  const firstAvailableDate = BUSINESS_INFO.availableSlots[0]?.date || "";
+  // 基準となる現在日時の取得
+  const currentDate = new Date();
 
-  // カレンダー表示用の年・月（サーバーサイドで現在時刻を元に生成）
-  const currentYear = baseDate.getFullYear();
-  const currentMonth = baseDate.getMonth() + 1;
+  // カレンダーの基本構造（日付配列）を生成
+  const calendarDays = generateCalendarData(currentDate);
+
+  // DBから動的な予約可能枠を取得（現在以降のスロットを最大100件）
+  const rawSlots = await getAvailableSlotsFromDB(c);
+
+  /**
+   * 予約枠データの整形
+   * DBの 'date_string' をコンポーネントが期待する 'date' キーにマップして、
+   * 予約可能な枠のマスターデータ（availableSlots）を作成します。
+   */
+  const availableSlots = rawSlots.map(slot => ({ 
+    ...slot, 
+    date: slot.date_string 
+  }));
+
+  /**
+   * 予約可能な最短の日付を特定
+   * 整形済みデータ（availableSlots）の先頭から、初期表示で選択状態にする日付を取得します。
+   */
+  const firstAvailableDate = availableSlots[0]?.date || "";
+
+  // 表示対象の年月（サーバーサイドの現在時刻を元に生成）
+  const baseYear = currentDate.getFullYear();
+  const baseMonth = currentDate.getMonth() + 1;
 
   /* -------------------------------------------------------------------------- */
-  /* 2. RENDERING
+  /* 2. RENDERING (HTML生成)
   /* -------------------------------------------------------------------------- */
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,10 +98,10 @@ export const Services = () => {
         <div id="calendar-container">
           ${CalendarSection(
             calendarDays, 
-            BUSINESS_INFO.availableSlots, 
+            availableSlots, 
             firstAvailableDate, 
-            currentYear, 
-            currentMonth
+            baseYear, 
+            baseMonth
           )}
         </div>
 

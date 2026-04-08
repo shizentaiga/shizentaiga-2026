@@ -37,37 +37,40 @@ src/
 ├── renderer.tsx             # 【共通の額縁】HTML基盤・SEO・外部資産管理
 ├── style.css                # 【外観】共通デザイン・独自クラス（PSI対策済み）
 │
-├── pages/                   # 【ページ本体】各画面のレイアウトを記述
+├── pages/                   # 【ページレイアウト】各画面の構成・データ統合
 │   ├── Top.tsx
-│   ├── Services.tsx         # ★改修：DB連携対応、asyncによるサーバー描画
+│   ├── Services.tsx         # ★改修：DB連携対応、asyncによるサーバーサイドデータ統合
 │   └── (他：Legal.tsx, Thanks.tsx 等)
 │
-├── components/              # 【部品】再利用可能なパーツ
-│   ├── CalendarSection.tsx  # DBデータを受け取り、カレンダーを描画
+├── components/              # 【UI部品】再利用可能な純粋コンポーネント
+│   ├── Calendar/            # カレンダー描画および日付選択UI
+│   ├── TimeSlot/            # ★新規：選択日付に基づく時間枠の一覧表示
+│   ├── Payment/             # ★新規：決済手段の選択・確認UI
 │   ├── ServicePlanCard.tsx  # プラン選択の各カード
-│   ├── BookingFooter.tsx    # 画面下部の固定金額・予約ボタン
-│   └── (他：Header, Footer, ConsultantSection 等)
+│   ├── BookingFooter.tsx    # 画面下部の動的金額表示・予約実行ボタン
+│   └── ConsultantSection.tsx # プロフィール・信頼性情報の提示
 │
-├── lib/                     # 【ロジック】計算・通信・外部API
+├── lib/                     # 【共有ロジック】計算・外部API連携の純粋関数
 │   ├── calendar-logic.ts    # カレンダーの日付・曜日計算
-│   └── stripe.ts            # Stripe Checkout 連携ロジック
+│   ├── api-client.ts        # ★新規：フロントエンド通信（fetch）の共通化
+│   └── stripe.ts            # Stripe Checkout 連携・署名検証ロジック
 │
-├── constants/               # 【静的データ】
+├── constants/               # 【静的定義】変更頻度の低いマスタデータ
 │   └── info.ts              # サービス名・価格・基本マスタ
 │
-├── db/                      # 【永続化】
+├── db/                      # 【データアクセス】永続化層との直接通信
 │   ├── schema.sql           # D1 テーブル定義（v1.7準拠）
 │   └── booking-db.ts        # 予約枠専用：shizentaiga_db への安全なアクセス
 │
-└── _sandbox/                # 【実験場】本番環境から分離された検証エリア
-    ├── _bridge.ts           # ★新規：index.tsx との接続を管理する絶縁体
+└── _sandbox/                # 【検証エリア】本番環境から分離された開発・実験場
+    ├── _bridge.ts           # index.tsx との接続を管理する絶縁体
     ├── _router.ts           # サンドボックス内ルーティング台帳
-    └── tests/               # 各種テスト用モジュール（01_xxx.ts〜順次追加）
-        └── (複数のテストファイルを順次保存)
+    └── tests/               # 各種テスト用モジュール（順次追加）
 
-public/                      # 【静的資産】外部公開されるファイル群
+public/                      # 【フロントエンド資産】ブラウザで直接動作するロジック
 ├── js/
-│   └── booking-logic.js     # フロントエンドの予約操作・UI制御
+│   ├── booking-ui.js        # ★拡張：カレンダー・時間枠の選択状態管理、DOM操作
+│   └── booking-payment.js   # ★新規：決済処理の呼び出し・エラーハンドリング
 └── (favicon.ico, robots.txt 等)
 ~~~
 
