@@ -80,21 +80,33 @@ src/
 ---
 
 ## 📂 ドキュメント体系 (`doc/`)
-
-ファイル名は英語、内容は日本語で記述する。
-
 | ファイル名 | 内容 |
 |---|---|
-| `00_project_master_plan.md` | 次世代基盤移行および決済内製化の全体計画書 |
-| `00-1_emergency_reboot_guide.md` | 障害発生時の緊急復旧手順 |
-| `00-2_project_reserve_plan.md` | v1.8 予約決済基盤の「正典」設計図 |
 | `01_system_architecture.md` | システム構造・ディレクトリ設計・データフロー等の定義 |
 | `02_implementation_detail.md` | 死活監視・自動更新・各コンポーネントの挙動等の詳細仕様 |
 | `03_stripe_integration_guide.md` | 決済フローとセキュリティ・PCI DSS 準拠に関する設計 |
-| `11_phase1_completion_report.md` | 基盤構築および本番ドメイン移行完了報告書 |
-| `90_development_log.md` | 開発・検証の作業記録・デバッグログ（内部用） |
+
+※プロジェクトの全容、設計、手順はすべて `/docs` フォルダ内に集約されています。
 
 ---
+---
+
+## ⚠️ 緊急時・引き継ぎ重要事項（ここだけは読む）
+
+### 1. 緊急復旧 (DR)
+障害発生時は [00-1_emergency_reboot_guide.md](./docs/00-1_emergency_rebert_guide.md) を最優先で実行してください。
+
+### 2. 環境変数 (Secrets)
+本番環境の秘匿情報は Cloudflare Dashboard の `Settings > Variables` に格納されています。
+ローカル開発時は `.dev.vars` を使用します。
+
+### 3. デプロイ
+- `npm run dev`: ローカル確認
+- `npx wrangler deploy`: 本番反映（Cloudflare Workers）
+
+### 4. データベース (D1)
+スキーマ変更や確認は [04_database_schema.md](./docs/04_database_schema.md) を参照。
+
 
 ## 🚀 開発ロードマップ
 

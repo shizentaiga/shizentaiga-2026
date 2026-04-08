@@ -1,30 +1,35 @@
+/**
+ * @file vite.config.ts
+ * @description Viteビルド設定ファイル。
+ * サーバーサイド（Hono/Cloudflare Workers）のビルドを主眼に置いています。
+ * * ■ クライアントJSの管理方針：
+ * 複雑なビルドトラブルを避けるため、フロントエンドJSはビルドを通さず
+ * /public/js/ 配下に直接配置し、静的ファイルとして配信しています。
+ */
+
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { defineConfig } from 'vite'
 import ssrPlugin from 'vite-ssr-components/plugin'
-import hono from '@hono/vite-build' // Honoのビルド用プラグインを追加
+import hono from '@hono/vite-build'
 
 export default defineConfig({
   plugins: [
     cloudflare(), 
     ssrPlugin(),
-    // 引数としてサーバーサイドのエントリポイントを指定します
+    // Honoのサーバーエントリポイントを指定
     hono({
       entry: './src/index.tsx' 
     })
   ],
-    build: {
-    // クライアントサイドとサーバーサイドの入力（エントリポイント）を定義
+  build: {
     rollupOptions: {
       input: {
-        // 1. サーバーサイド（メインロジック）
+        // サーバーサイド（メインロジック）のみをビルド対象とする
         index: './src/index.tsx', 
-        // 2. クライアントサイド（予約カレンダーの操作用TS）
-        'booking-interaction': './src/client/booking-interaction.ts'
       },
+      // 出力設定：サーバーサイド実行用のJSを出力
       output: {
-        // ビルド後のJSファイルを static/js フォルダに書き出す設定
-        // これにより、Services.tsx から /static/js/booking-interaction.js で参照可能になります
-        entryFileNames: 'static/js/[name].js',
+        entryFileNames: 'index.js',
       }
     }
   }
