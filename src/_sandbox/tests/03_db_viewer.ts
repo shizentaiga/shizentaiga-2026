@@ -14,6 +14,22 @@
  * * 4. 開発サイクル：
  * - index.tsx は一切汚さず、この _sandbox/tests フォルダを増設するだけで
  * 本番のリスクをゼロに抑えたまま「物理的なDB疎通」を何度でも検証できる。
+ * 
+ * DB切り分けコマンド
+ * 1. データベース名の確認とパスの確定
+ * npx wrangler d1 info shizentaiga_db --local
+ * 2. テーブル構造（カラム名・型）の抽出
+ * npx wrangler d1 execute shizentaiga_db --local --command="PRAGMA table_info(slots);"
+ * 3. データの存在確認（1件以上のチェック）
+ * npx wrangler d1 execute shizentaiga_db --local --command="SELECT COUNT(*) as total FROM slots;"
+ * 
+ * ステップ1：本番DBにテーブルが存在するか確認
+ * npx wrangler d1 execute shizentaiga_db --remote --command="PRAGMA table_info(slots);"
+ * ステップ2：本番DBのデータ件数を確認（Seed確認）
+ * npx wrangler d1 execute shizentaiga_db --remote --command="SELECT COUNT(*) as total FROM slots;"
+ * ステップ3：【必要に応じて】本番へのSeed投入
+ * npx wrangler d1 execute shizentaiga_db --remote --file=./seed.sql
+ * 
  */
 
 import { Hono } from 'hono';
