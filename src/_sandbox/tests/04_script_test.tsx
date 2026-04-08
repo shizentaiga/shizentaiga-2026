@@ -11,12 +11,11 @@ test04.get('/', (c) => {
         <meta charset="UTF-8" />
       </head>
       <body>
-        <h1>Step 2: External Script Test</h1>
+        <h1>Step 2: External Script Test(2026/04/09 3:14)</h1>
         <button id="testButton" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
           Click Me!
         </button>
 
-        // Vite/Cloudflareの標準ルールでは public 直下は / 直下として配信されます
         <script src="/test04_logic.js"></script>
 
       </body>
