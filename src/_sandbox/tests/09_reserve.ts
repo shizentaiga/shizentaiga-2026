@@ -49,6 +49,21 @@ test09.get('/', async (c) => {
     // DBの1レコード（大きな枠）を走査し、条件を満たす表示用ボタン（小枠）へ変換する。
     const finalSlots: any[] = [];
 
+    /**
+     * 【時刻ズレ回避の定義】
+     * リモート環境（Cloudflare Workers等）のシステム時刻はUTCであるため、
+     * Intl.DateTimeFormat を使用して明示的に Asia/Tokyo を指定して整形する。
+     */
+    const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      timeZone: 'Asia/Tokyo'
+    });
+
+    const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'Asia/Tokyo'
+    });
+
     rawSlots.forEach((slot: any) => {
       // DBカラムの説明:
       // startUnix    : 枠の開始点（10桁のUnix Timestamp / 秒単位）
@@ -67,22 +82,16 @@ test09.get('/', async (c) => {
        * DBの開始地点から、step（刻み幅）ずつ時間を進めながらチェックを行う。
        * * [終了条件]
        * (offset + requiredTime) が totalDuration を超える場合、
-       * その開始地点で予約を受けると、DB上の枠をはみ出してしまう（＝後ろの予約と被る）ためループを抜ける。
+       * その開始地点で予約を受けると、DB上の枠をはみ出してしまうためループを抜ける。
        */
       for (let offset = 0; offset <= totalDuration - requiredTime; offset += slotStep) {
         // offsetは「分」のため、Unix秒に変換（*60）して加算
         const currentStartUnix = startUnix + (offset * 60);
         const startDate = new Date(currentStartUnix * 1000);
         
-        // [UI用整形] ISO形式（2026-04-10）への置換
-        const dateStr = startDate.toLocaleDateString('ja-JP', { 
-          year: 'numeric', month: '2-digit', day: '2-digit' 
-        }).replace(/\//g, '-');
-        
-        // [UI用整形] 24時間表記（14:00）への整形
-        const timeStr = startDate.toLocaleTimeString('ja-JP', { 
-          hour: '2-digit', minute: '2-digit' 
-        });
+        // [UI用整形] 強制的に日本時間として文字列化
+        const dateStr = dateFormatter.format(startDate).replace(/\//g, '-');
+        const timeStr = timeFormatter.format(startDate);
 
         finalSlots.push({
           display_date: dateStr,
@@ -102,7 +111,7 @@ test09.get('/', async (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://cdn.tailwindcss.com"></script>
-        <title>Aletheia - Reservation Logic Debug</title>
+        <title>Reservation Logic Debug</title>
       </head>
       <body class="bg-slate-50 p-4 sm:p-8 text-slate-800 font-sans">
         <div class="max-w-2xl mx-auto space-y-6">
@@ -163,14 +172,14 @@ test09.get('/', async (c) => {
 
           <div class="bg-slate-900 text-slate-400 p-5 rounded-xl font-mono text-[10px] overflow-auto max-h-64 shadow-inner border border-slate-800">
             <div class="flex justify-between items-center border-b border-slate-800 pb-2 mb-2">
-              <p class="text-slate-500 uppercase font-bold tracking-widest underline decoration-slate-700">Raw DB Content (Database Level)</p>
+              <p class="text-slate-500 uppercase font-bold tracking-widest underline decoration-slate-700">Raw DB Content (JST Debug)</p>
               <span class="bg-slate-800 px-2 py-0.5 rounded text-slate-500">Record Count: ${rawSlots.length}</span>
             </div>
             ${rawSlots.length === 0 
               ? 'Database is currently empty.' 
               : rawSlots.map((s: any) => {
-                  // DBのUnix秒を可読な時刻に変換して表示（データの整合性チェック用）
-                  const jstTime = s.start_at_unix ? new Date(s.start_at_unix * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : 'Invalid';
+                  // DBのUnix秒も、デバッグ用に日本時間で可視化
+                  const jstTime = s.start_at_unix ? timeFormatter.format(new Date(s.start_at_unix * 1000)) : 'Invalid';
                   return html`
                     <div class="py-1.5 border-b border-slate-800/50 hover:bg-slate-800/50 text-slate-300 italic flex flex-col gap-0.5 group">
                       <div class="flex justify-between">
@@ -178,7 +187,7 @@ test09.get('/', async (c) => {
                         <span class="text-blue-500/80 font-bold group-hover:text-blue-400 tracking-tighter italic">Total ${s.slot_duration || 0} min window</span>
                       </div>
                       <div class="text-[9px] text-slate-500">
-                        Start Point (Unix): ${s.start_at_unix || '0'} <span class="text-slate-600 ml-2 font-sans not-italic">➔ Local Start: ${jstTime}</span>
+                        Start Point (Unix): ${s.start_at_unix || '0'} <span class="text-slate-600 ml-2 font-sans not-italic">➔ JST Start: ${jstTime}</span>
                       </div>
                     </div>
                   `;
@@ -191,7 +200,6 @@ test09.get('/', async (c) => {
     `);
 
   } catch (e: any) {
-    // [Error Handling] データベース接続エラーやパースエラーを補足し、画面に出力する。
     console.error("Critical Error in test09:", e);
     return c.text(`❌ Critical System Error: ${e.message}\nCheck logs for more details.`);
   }
