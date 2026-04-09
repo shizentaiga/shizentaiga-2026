@@ -3,6 +3,7 @@
  * @description 
  * カレンダーの描画と日付選択を担当。
  * 各日付セルに HTMX の属性を追加し、クリック時に予約枠を動的取得するようにしました。
+ * 修正点：選択時の枠線が欠ける問題（コの字）を inset shadow で解決し、選択状態の解除を確実にしています。
  */
 
 import { html } from 'hono/html'
@@ -46,7 +47,7 @@ export const CalendarSection = (
 
         <div class="grid grid-cols-7 gap-px bg-gray-100">
           ${calendarDays.map((day) => {
-            // ステップ2で用意した day.dateStr をそのまま利用（ロジックの重複を排除）
+            // lib/calendar-logic.ts で生成された日付データを利用
             const isoDateStr = day.dateStr; 
             const dateObj = day.date;
             const d = day.dayNum;
@@ -59,14 +60,24 @@ export const CalendarSection = (
             const showMonthLabel = day.isFirstDay;
 
             /**
+             * 選択状態のスタイル定義
+             * ring-2 はグリッド境界で欠ける（コの字になる）ため、内側への shadow-inset を使用。
+             * 選択時は最前面 (z-10) に出すことで、枠線を際立たせます。
+             */
+            const selectedClasses = isSelected 
+              ? 'bg-blue-50 shadow-[inset_0_0_0_2px_#2c5282] z-10' 
+              : 'bg-white';
+
+            /**
              * ★HTMXの設定ポイント
-             * 1. hx-get: クリック時にこのURLへGETリクエストを送る
-             * 2. hx-target: サーバーから返ってきたHTMLをどこに流し込むか
-             * 3. hx-trigger: どのようなアクションで動くか（click）
-             * 4. hx-indicator: 通信中にスタイルを変える（オプション）
+             * 1. hx-get: クリック時に予約枠一覧を取得
+             * 2. hx-target: 取得したHTMLを #slot-list-container へ挿入
+             * 3. hx-on:click: 
+             * - 既存の全セルの選択スタイルと data-selected 属性をリセット
+             * - クリックされた要素にのみ選択スタイルと data-selected="true" を付与
              */
             return html`
-              <div class="calendar-day-cell bg-white group relative ${CONFIG.CELL_MIN_HEIGHT} flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50/30 transition-all"
+              <div class="calendar-day-cell group relative ${CONFIG.CELL_MIN_HEIGHT} flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50/30 transition-all ${selectedClasses}"
                    data-date="${isoDateStr}"
                    data-selected="${isSelected ? 'true' : 'false'}"
                    data-available="${isAvailable ? 'true' : 'false'}"
@@ -75,12 +86,16 @@ export const CalendarSection = (
                    hx-target="#slot-list-container"
                    hx-trigger="click"
 
-                  /* ★追加：JavaScriptを使わずに「選択状態」の見た目を切り替える設定 */
-                  /* 他のセルの選択を解除し、クリックされた自分にだけ 'bg-blue-100' をつけます */
-                  hx-on:click="
-                    document.querySelectorAll('.calendar-day-cell').forEach(el => el.classList.remove('bg-blue-100', 'ring-2', 'ring-blue-500'));
-                    this.classList.add('bg-blue-100', 'ring-2', 'ring-blue-500');
-                  "
+                   hx-on:click="
+                    document.querySelectorAll('.calendar-day-cell').forEach(el => {
+                      el.classList.remove('bg-blue-50', 'shadow-[inset_0_0_0_2px_#2c5282]', 'z-10');
+                      el.classList.add('bg-white');
+                      el.setAttribute('data-selected', 'false');
+                    });
+                    this.classList.remove('bg-white');
+                    this.classList.add('bg-blue-50', 'shadow-[inset_0_0_0_2px_#2c5282]', 'z-10');
+                    this.setAttribute('data-selected', 'true');
+                   "
               >
                 
                 ${showMonthLabel ? html`
@@ -100,7 +115,7 @@ export const CalendarSection = (
                   ` : ''}
                 </div>
                 
-                ${shouldHighlightSlot ? html`<div class="absolute inset-0 bg-blue-50/40 pointer-events-none"></div>` : ''}
+                ${shouldHighlightSlot && !isSelected ? html`<div class="absolute inset-0 bg-blue-50/40 pointer-events-none"></div>` : ''}
               </div>
             `
           })}
