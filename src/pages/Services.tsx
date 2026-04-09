@@ -63,6 +63,7 @@ export const Services = async (c: any) => {
   /*
   /* ⚠️ 懸念：CDN版Tailwindは実行負荷のリスクがあるため、本番リリース時にビルドプロセスへの統合を検討。
   /* -------------------------------------------------------------------------- */
+
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -80,7 +81,7 @@ export const Services = async (c: any) => {
           ${ServicePlanList(BUSINESS_INFO.services)}
         </section>
 
-        <div id="calendar-container">
+        <div id="calendar-container" class="mb-12">
           ${CalendarSection(
             calendarDays, 
             availableSlots, 

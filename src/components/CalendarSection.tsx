@@ -39,7 +39,7 @@ export const CalendarSection = (
 
   return html`
     <section class="mb-12">
-      <h2 class="text-[11px] font-bold tracking-[0.2em] text-gray-500 mb-6 uppercase">02. Select Date & Time</h2>
+      <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">02. Select Date</h2>
       
       <div class="mb-6 text-center">
         <span class="text-xl font-medium tracking-[0.2em] text-gray-900 border-b border-gray-100 pb-2 inline-block">
@@ -63,19 +63,13 @@ export const CalendarSection = (
             const m = dateObj.getMonth() + 1;
             const d = dateObj.getDate();
 
-            // ISO形式の文字列生成 (YYYY-MM-DD)
             const pad = (n: number) => n.toString().padStart(2, '0');
             const isoDateStr = `${y}-${pad(m)}-${pad(d)}`;
             
-            // 予約枠の照合
             const isAvailable = availableSlots.some(slot => slot.date === isoDateStr);
             const isSelected = firstAvailableDate === isoDateStr;
-            
-            // 14日間ルール：今日から指定期間内か、または今月の日付であれば強調
             const isInActivePeriod = dateObj >= today && dateObj <= activeLimitDate;
             const shouldHighlightSlot = isAvailable && (day.isCurrentMonth || isInActivePeriod);
-
-            // Googleカレンダー方式：1日（ついたち）のみ「5/1」表記、それ以外は「1」
             const showMonthLabel = d === 1;
 
             return html`
@@ -109,26 +103,21 @@ export const CalendarSection = (
       </div>
 
       <div id="time-slot-container" class="space-y-6 ${CONFIG.MAX_WIDTH} mx-auto">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="text-[11px] font-bold text-gray-600 uppercase tracking-widest">Select Time</span>
-          <span id="selected-date-display" class="text-xs font-bold text-gray-900 border-b-2 border-gray-200 pb-0.5">
-            ${hasAnySlots ? (firstAvailableDate || '日付を選択してください') : '受付停止中'}
-          </span>
+        <div class="hidden">
+           <span id="selected-date-display">${firstAvailableDate}</span>
         </div>
 
-        <div id="slot-list" class="bg-gray-50 border border-dashed border-gray-200 rounded-sm p-8 text-center">
+        <div id="slot-list" class="bg-gray-50/50 border border-dashed border-gray-200 rounded-lg p-8 text-center min-h-32 flex items-center justify-center">
           ${hasAnySlots 
-            ? html`<p class="text-[10px] text-gray-500 italic font-medium tracking-wider">Please select a date on the calendar.</p>`
+            ? html`
+                <p class="text-sm text-gray-500 leading-relaxed">
+                  カレンダーから日付を選択してください<br>
+                  <span class="text-[10px] tracking-widest text-gray-400 uppercase">Please select a date from the calendar</span>
+                </p>
+              `
             : html`
                 <div class="flex flex-col items-center gap-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l4 4m0-4l-4 4" />
-                  </svg>
-                  <div class="space-y-1">
-                    <p class="text-[11px] text-gray-600 font-bold tracking-widest">現在、受付可能な予約枠はありません。</p>
-                    <p class="text-[11px] text-gray-400 uppercase">No available slots at the moment.</p>
-                  </div>
+                  <p class="text-[11px] text-gray-600 font-bold tracking-widest uppercase">No available slots at the moment.</p>
                 </div>
               `
           }
