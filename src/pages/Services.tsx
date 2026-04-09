@@ -1,7 +1,11 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレイアウト。
- * D1データベースの予約枠と静的なサービス情報を統合して描画します。
+ * @description 
+ * 予約ページの「全体レイアウト」を統括する親コンポーネント。
+ * * ■ 役割:
+ * 1. サーバーサイドでDB（D1）から最新の予約空き状況を取得する。
+ * 2. ページ全体の骨組み（ヘッダー、プラン選択、カレンダー枠、フッター）を構築する。
+ * 3. HTMX（通信ライブラリ）を起動し、部分的な画面更新の土台を作る。
  */
 
 import { html, raw } from 'hono/html'
@@ -23,12 +27,17 @@ import { getAvailableSlotsFromDB } from '../db/booking-db'
 
 export const Services = async (c: any) => {
   /* -------------------------------------------------------------------------- */
-  /* 1. DATA PREPARATION (データ準備)
+  /* 1. DATA PREPARATION (サーバーサイドでのデータ準備)
   /* -------------------------------------------------------------------------- */
   const currentDate = new Date();
+  
+  // カレンダーの「日付の器」を生成（lib/calendar-logic.ts を参照）
   const calendarDays = generateCalendarData(currentDate);
+  
+  // DBから予約枠データを直接取得（API経由ではなく、サーバー内部で完結）
   const rawSlots = await getAvailableSlotsFromDB(c);
 
+  // フロントエンドで扱いやすいように、DBのカラム名を一部調整
   const availableSlots = rawSlots.map(slot => ({ 
     ...slot, 
     date: slot.date_string 
@@ -39,11 +48,12 @@ export const Services = async (c: any) => {
   const baseMonth = currentDate.getMonth() + 1;
 
   /* -------------------------------------------------------------------------- */
-  /* 2. RENDERING (HTML生成)
+  /* 2. RENDERING (HTML構造の構築)
   /* -------------------------------------------------------------------------- */
 
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 
     <body class="bg-gray-50 text-gray-800 leading-relaxed pb-40">
       
@@ -68,18 +78,27 @@ export const Services = async (c: any) => {
           )}
         </div>
 
+        <div id="slot-list-container" class="mb-12">
+           <p class="text-sm text-gray-400 text-center py-8 border-2 border-dashed border-gray-100 rounded-xl">
+             カレンダーから希望日を選択してください
+           </p>
+        </div>
+
+        <div id="error-display" class="hidden mb-12 p-4 bg-red-50 text-red-500 text-sm rounded-lg text-center">
+          通信エラーが発生しました。ページを再読み込みしてください。
+        </div>
+
         ${ConsultantSection()}
       </div>
 
       ${BookingFooter()}
 
       <script>
-        /**
-         * サーバー側のデータをグローバル変数として定義
-         * raw() を使用してHTMLエスケープを防ぎ、正しいJSONとして渡します
-         */
-        window.AVAILABLE_SLOTS = ${raw(JSON.stringify(availableSlots || []))};
+        document.body.addEventListener('htmx:responseError', function(evt) {
+          const errorDiv = document.getElementById('error-display');
+          if (errorDiv) errorDiv.classList.remove('hidden');
+        });
       </script>
-      <script src="/js/booking-logic.js"></script> </body>
+    </body>
   `
 }
