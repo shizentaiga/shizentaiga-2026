@@ -1,8 +1,8 @@
 /**
  * @file Services.tsx
  * @description サービス予約ページのメインレイアウト。
- * Cloudflare D1データベースから取得した動的な予約枠と、静的なサービス情報を統合して表示します。
- * 「構造（JSX）」と「振る舞い（JS）」を分離するため、クライアントサイドロジックは外部ファイル化しています。
+ * D1データベースの予約枠と静的なサービス情報を統合して描画します。
+ * メンテナンス性を高めるため、構造（JSX）と振る舞い（JS）を分離した設計を採用しています。
  */
 
 import { html } from 'hono/html'
@@ -24,26 +24,23 @@ import { getAvailableSlotsFromDB } from '../db/booking-db'
 
 /**
  * サービス予約ページのメインコンポーネント
- * @param c Honoのコンテキスト。D1接続バインディング（shizentaiga_db）を含む環境変数を参照します。
+ * @param c Honoコンテキスト。D1接続バインディング等の環境変数を参照します。
  */
 export const Services = async (c: any) => {
   /* -------------------------------------------------------------------------- */
   /* 1. DATA PREPARATION (データ準備)
   /* -------------------------------------------------------------------------- */
   
-  // 基準となる現在日時の取得
+  // 基準日時の取得とカレンダー基本構造の生成
   const currentDate = new Date();
-
-  // カレンダーの基本構造（日付配列）を生成
   const calendarDays = generateCalendarData(currentDate);
 
-  // DBから動的な予約可能枠を取得（現在以降のスロットを最大100件）
+  // DBから予約可能枠を取得
   const rawSlots = await getAvailableSlotsFromDB(c);
 
   /**
    * 予約枠データの整形
-   * DBの 'date_string' をコンポーネントが期待する 'date' キーにマップして、
-   * 予約可能な枠のマスターデータ（availableSlots）を作成します。
+   * DBの 'date_string' をコンポーネント用プロパティ 'date' にマッピングします。
    */
   const availableSlots = rawSlots.map(slot => ({ 
     ...slot, 
@@ -51,35 +48,23 @@ export const Services = async (c: any) => {
   }));
 
   /**
-   * 予約可能な最短の日付を特定
-   * 整形済みデータ（availableSlots）の先頭から、初期表示で選択状態にする日付を取得します。
+   * 初期選択状態の特定
+   * 予約可能な最短の日付を特定し、初期表示時のアクティブな日付として設定します。
    */
   const firstAvailableDate = availableSlots[0]?.date || "";
 
-  // 表示対象の年月（サーバーサイドの現在時刻を元に生成）
+  // サーバーサイド時刻を基準とした表示対象年月の生成
   const baseYear = currentDate.getFullYear();
   const baseMonth = currentDate.getMonth() + 1;
 
   /* -------------------------------------------------------------------------- */
   /* 2. RENDERING (HTML生成)
+  /* ※ renderer.tsx で style.css を一括管理しているため、本ソース内でのCSS定義は不要です。
+  /*
+  /* ⚠️ 懸念：CDN版Tailwindは実行負荷のリスクがあるため、本番リリース時にビルドプロセスへの統合を検討。
   /* -------------------------------------------------------------------------- */
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <style>
-      /* 選択状態や装飾に関する Critical CSS
-         JSの data-selected 属性の操作と連動して、ボーダーや影を動的に切り替えます */
-      .selection-card[data-selected="true"] { border: 2px solid #2c5282; background: rgba(249, 250, 251, 0.9); }
-      .selection-card[data-selected="false"] { border: 1px solid #e5e7eb; }
-      .selection-card:hover { border-color: #2c5282; }
-      
-      .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #2c5282; }
-      .available-mark { width: 4px; height: 4px; border-radius: 50%; background: #2c5282; margin-top: 2px; }
-      .calendar-day-cell[data-selected="true"] { background-color: #f8fafc; box-shadow: inset 0 0 0 2px #2c5282; z-index: 10; }
-      
-      /* スムーズなセクション切り替えのためのトランジション */
-      #calendar-container { transition: all 0.3s ease-in-out; }
-    </style>
 
     <body class="bg-gray-50 text-gray-800 leading-relaxed pb-40">
       

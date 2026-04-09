@@ -2,6 +2,7 @@
  * @file style.css
  * @description サイト全体のブランド設計図。
  * 明朝体ベースの信頼感と、旧デザインの正確な余白・色味をモダンなTailwind v4環境で再現します。
+ * 予約システムの動的なUI状態（選択、ステータス表示等）のスタイルも包含します。
  */
 
 /* --- Tailwind Layers Setup --- */
@@ -13,10 +14,10 @@
 @layer base {
     :root {
         --primary-color: #1a1a1a;
-        --accent-blue: #2c5282; /* 予約システム用アクセント */
+        --accent-blue: #2c5282; /* 予約システム用アクセント（信頼感のある濃紺） */
         --text-main: #2b2b2b;
         --text-muted: #555555;  /* 旧デザインの数値 #555 を採用 */
-        --bg-base: #fcfcfc;     /* 旧デザインの背景色 */
+        --bg-base: #fcfcfc;      /* 旧デザインの背景色 */
     }
 
     body {
@@ -38,7 +39,7 @@
 
     h1 {
         font-weight: 500;
-        font-size: clamp(1.8rem, 5vw, 2.2rem); /* スマホで1.8rem、PCで2.2remを維持 */
+        font-size: clamp(1.8rem, 5vw, 2.2rem); 
         letter-spacing: 0.2rem;
         margin-bottom: 0.5rem;
         color: var(--primary-color);
@@ -56,7 +57,7 @@
     h3 {
         font-size: 1.1rem;
         font-weight: 500;
-        margin-bottom: 0.5rem; /* 見出しと説明文の間の緊密な関係を保持 */
+        margin-bottom: 0.5rem;
         color: var(--primary-color);
     }
 
@@ -94,10 +95,10 @@
         color: var(--text-muted);
         letter-spacing: 0.3rem;
         text-transform: uppercase;
-        margin-top: 0.5rem; /* 名前との適切な行間 */
+        margin-top: 0.5rem;
     }
 
-    /* 3. Media & Assets */
+    /* --- Media & Assets --- */
     .profile-image-area {
         margin-bottom: 30px;
         background-color: #f0f0f0; 
@@ -107,11 +108,11 @@
         margin-right: auto;
     }
 
-    /* 4. Interactive Elements (ブランディング：白背景・黒反転) */
+    /* --- Interactive Elements --- */
     .btn {
         display: inline-block;
-        padding: 12px 30px; /* 旧デザインのパディングを再現 */
-        margin-top: 1.2rem;  /* 説明文とボタンの間の余白 */
+        padding: 12px 30px;
+        margin-top: 1.2rem;
         border: 1px solid var(--primary-color);
         color: var(--primary-color);
         text-decoration: none;
@@ -134,12 +135,12 @@
     }
 
     .link-list li { 
-        margin-bottom: 15px; /* 旧デザインのリスト間隔 */
+        margin-bottom: 15px;
     }
 
     .link-list a {
         color: var(--primary-color);
-        text-decoration: underline; /* アクセシビリティ：リンクを明示 */
+        text-decoration: underline;
         text-underline-offset: 4px;
         transition: opacity 0.2s;
     }
@@ -148,7 +149,11 @@
         opacity: 0.7;
     }
 
-    /* 5. Booking Components (Services UI) */
+    /* ---------------------------------------
+        3. Booking Components (予約システム専用)
+    --------------------------------------- */
+    
+    /* 選択カード（プラン・日付） */
     .selection-card {
         border: 1px solid #e5e7eb;
         transition: all 0.2s ease-in-out;
@@ -160,9 +165,43 @@
         background: rgba(248, 250, 252, 0.95);
     }
 
-    /* 6. Footer & Legal */
+    .selection-card:hover {
+        border-color: var(--accent-blue);
+    }
+
+    /* ステータスドット・マーク */
+    .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent-blue);
+    }
+
+    .available-mark {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: var(--accent-blue);
+        margin-top: 2px;
+    }
+
+    /* カレンダーセル */
+    .calendar-day-cell[data-selected="true"] {
+        background-color: #f8fafc;
+        box-shadow: inset 0 0 0 2px var(--accent-blue);
+        z-index: 10;
+    }
+
+    /* アニメーション */
+    #calendar-container {
+        transition: all 0.3s ease-in-out;
+    }
+
+    /* ---------------------------------------
+        4. Footer & Legal
+    --------------------------------------- */
     footer {
-        margin-top: 100px; /* 旧デザインのフッター上部余白 */
+        margin-top: 100px;
         padding-bottom: 40px;
         text-align: center;
         font-size: 0.8rem;
@@ -197,16 +236,12 @@
 }
 
 /* ---------------------------------------
-    7. Utilities
+    5. Utilities
 --------------------------------------- */
 @layer utilities {
     .pc-only { display: none; }
 
     @media (min-width: 768px) {
         .pc-only { display: inline; }
-    }
-
-    @media (max-width: 600px) {
-        /* モバイル時のコンテナパディング最適化はbaseレイヤーに集約済み */
     }
 }
