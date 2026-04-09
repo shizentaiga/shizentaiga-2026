@@ -19,6 +19,7 @@ import { test02 } from './tests/02_db_check';
 import { test03 } from './tests/03_db_viewer';
 import { test04 } from './tests/04_script_test';
 import { test05 } from './tests/05_db_test';
+import { test06 } from './tests/06_htmx_check'; // 追記
 
 export const sandboxRouter = new Hono();
 
@@ -28,6 +29,7 @@ sandboxRouter.route('/test02', test02);
 sandboxRouter.route('/test03', test03);
 sandboxRouter.route('/test04', test04);
 sandboxRouter.route('/test05', test05);
+sandboxRouter.route('/test06', test06); // 追記
 
 // サンドボックスのトップページ（/_debug/）
 sandboxRouter.get('/', (c) => c.text("Sandbox Router is active."));
