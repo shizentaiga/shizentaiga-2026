@@ -5,6 +5,7 @@ import { renderer } from './renderer'
 import { Top } from './pages/Top'     
 import { Legal } from './pages/Legal' 
 import { Services } from './pages/Services' // 依存関係あり
+import { ServiceSlots } from './pages/ServiceSlots' // ★追加：予約枠の断片生成用
 
 const app = new Hono()
 
@@ -24,6 +25,7 @@ app.use('/static/*', serveStatic({ root: './' }))
 app.all('*', renderer)
 
 // 1. トップページ（既存：正常動作維持）
+// ※ c.render は renderer.tsx を通るため、SEOメタタグ等が正しく付与されます
 app.get('/', (c) => {
   return c.render(<Top />)
 })
@@ -52,10 +54,19 @@ app.get('/services', async (c) => {
     })
   } catch (error) {
     console.error("Services Render Error:", error);
-    // エラー時はユーザーを混乱させないよう、簡素なメッセージを出すか
-    // c.render(<Top />) などにフォールバックさせることも可能です
     return c.text("現在、予約システムを一時停止しております。しばらく経ってから再度お試しください。", 500);
   }
+})
+
+/**
+ * ★追加：HTMX専用ルーティング
+ * カレンダーの日付がクリックされた際、HTMXはこのURL（/services/slots）に
+ * 予約枠の「断片（HTML）」を取りに来ます。
+ * * 【注意】これはページ全体（renderer）を通さない「生」のHTML断片を返すため、
+ * c.render ではなく、ServiceSlots が生成する c.html をそのまま返します。
+ */
+app.get('/services/slots', async (c) => {
+  return await ServiceSlots(c);
 })
 
 export default app

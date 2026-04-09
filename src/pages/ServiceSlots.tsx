@@ -1,44 +1,58 @@
 /**
  * @file ServiceSlots.tsx
  * @description 
- * 特定の日付を選択した際に、その日の予約枠（ボタン一覧）だけをHTMLとして返す「断片（Fragment）」生成ファイル。
- * ページ全体をリロードせずに、カレンダーの下の部分だけを書き換えるために使用します。
+ * カレンダーで日付がクリックされた際、その日の「予約ボタン一覧」だけを作る専用ファイルです。
+ * ページ全体を書き換えるのではなく、特定の場所だけを最新の状態にする「部品（フラグメント）」を生成します。
  */
 
 import { html } from 'hono/html'
-// db/booking-db.ts から、データ取得関数と「データの型定義（BookingSlot）」をインポート
+// データベースから予約情報を取ってくるための「道具(getAvailableSlotsFromDB)」と、
+// データの形を定義した「設計図(BookingSlot)」を読み込みます。
 import { getAvailableSlotsFromDB, BookingSlot } from '../db/booking-db'
 
 /**
- * 【ロジック：時刻変換】
- * Unix Timestamp (秒単位の数値) を JST (日本標準時) の "10:00" 形式の文字列に変換します。
- * * 💡 なぜサーバー側でするのか？：
- * ブラウザ（JavaScript）に計算させると、ユーザーのPC設定が「海外時間」だった場合に
- * 表示がズレる不具合が起きます。サーバー側で固定することで、誰が見ても正しい日本時間になります。
+ * 【ロジック：時刻の見た目を整える】
+ * DBにある数値（Unixタイムスタンプ）を、人間が見てわかる「10:00」のような形式に変えます。
+ * * @param unixSeconds - 1970年1月1日からの経過秒数
+ * @returns 日本時間での "HH:mm" 形式の文字列
  */
+// const formatJstTime = (unixSeconds: number): string => {
+//   // コンピュータはミリ秒で計算するため、秒単位を1000倍します
+//   const date = new Date(unixSeconds * 1000);
+  
+//   // 💡 重要：サーバーの場所に関わらず、強制的に「日本（東京）」の時間として文字にします。
+//   // これにより、海外のサーバー上でも、等しく同じ時刻が表示されます。
+//   return date.toLocaleTimeString('ja-JP', {
+//     timeZone: 'Asia/Tokyo',
+//     hour: '2-digit',    // 時を2桁で（09時など）
+//     minute: '2-digit',  // 分を2桁で
+//     hour12: false       // 24時間表記にする
+//   });
+// }
+
 const formatJstTime = (unixSeconds: number): string => {
-  // 1. 秒をミリ秒に変換してDateオブジェクトを作成
   const date = new Date(unixSeconds * 1000);
-  // 2. サーバー環境に関わらず、強制的に日本時間 (+9時間) の位置へ時間をずらす
-  const jstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
   
-  // 3. 2桁表示（例：4時 → 04時）を維持しつつ、時と分を抽出
-  const hours = jstDate.getUTCHours().toString().padStart(2, '0');
-  const minutes = jstDate.getUTCMinutes().toString().padStart(2, '0');
-  
-  return `${hours}:${minutes}`;
+  // Intl.DateTimeFormat を使用して、確実に「日本時間」として文字列化します。
+  // これにより 9時間の計算ミスなどが物理的に発生しなくなります。
+  return new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(date);
 }
 
 /**
  * 【メインハンドラー：ServiceSlots】
- * Honoのルーティングから呼び出される「中身」の処理です。
+ * Hono（サーバー）が「/services/slots」へのリクエストを受け取った時に実行されるメイン処理です。
  */
 export const ServiceSlots = async (c: any) => {
-  // 1. URLの末尾（?date=2026-04-10）から日付文字列を受け取る
+  // 1. カレンダーから送られてきた日付（例：2026-04-10）を読み取ります。
   const targetDate = c.req.query('date')
 
-  // 【ガード：日付がない場合】
-  // 万が一URLが正しくない場合、システムを止めずに「エラー表示」だけを返します
+  // 【安全策：日付が届かなかった場合】
+  // エラーで画面が真っ白にならないよう、赤い文字で警告メッセージを返します。
   if (!targetDate) {
     return c.html(html`
       <div id="slot-list-container">
@@ -49,22 +63,22 @@ export const ServiceSlots = async (c: any) => {
 
   try {
     /**
-     * 2. データベースから全予約枠を取得
-     * : BookingSlot[] という記述は「この変数は予約枠データの配列である」という型宣言です。
-     * これにより、スペルミス（time_string等）をTypeScriptが事前に防いでくれます。
+     * 2. データベースへのお問い合わせ
+     * await を使うことで、DBからデータが届くまで少しだけ「待機」します。
+     * rawSlots には、DBにあるすべての予約枠がリスト形式で入ります。
      */
     const rawSlots: BookingSlot[] = await getAvailableSlotsFromDB(c)
 
     /**
-     * 3. データのフィルタリング
-     * DBにある大量のデータの中から、今クリックされた日付（targetDate）と一致するものだけを抜き出します。
-     * 文字列同士（'2026-04-10' === '2026-04-10'）で比較するため、計算ミスが起きません。
+     * 3. 必要なデータだけを抽出（フィルタリング）
+     * 100件のデータがあっても、今日クリックされた日付と一致するものだけに絞り込みます。
      */
     const filteredSlots = rawSlots.filter(slot => slot.date_string === targetDate)
 
     /**
-     * 4. HTMLの生成
-     * id="slot-list-container" を持たせることで、HTMXが「ここを書き換えればいいんだな」と判断します。
+     * 4. 画面に表示するHTMLの組み立て
+     * id="slot-list-container" という名前をつけることで、
+     * HTMX（フロントエンド側）が「ここを書き換えればいいんだな」と自動判別します。
      */
     return c.html(html`
       <div id="slot-list-container" class="fade-in">
@@ -75,7 +89,7 @@ export const ServiceSlots = async (c: any) => {
         <div style="display: grid; gap: 0.5rem; grid-template-columns: repeat(2, 1fr);">
           ${filteredSlots.length > 0 
             ? filteredSlots.map(slot => {
-                // 各スロットごとに、表示用の時刻（10:00など）を作成
+                // 各データごとに「10:00」「13:30」などの文字を作ります
                 const displayTime = formatJstTime(slot.start_at_unix);
                 
                 return html`
@@ -93,16 +107,22 @@ export const ServiceSlots = async (c: any) => {
           }
         </div>
 
-        {/* CSSアニメーションをここに内蔵することで、予約枠が表示される瞬間にふわっと出てきます */}
         <style>
           .fade-in { animation: fadeIn 0.3s ease-in-out; }
           @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-          .slot-btn:hover { background-color: #f9fafb !important; border-color: #3b82f6 !important; color: #3b82f6; }
+          
+          /* マウスを重ねた（ホバーした）時のボタンの色を青色に変えます */
+          .slot-btn:hover { 
+            background-color: #f9fafb !important; 
+            border-color: #3b82f6 !important; 
+            color: #3b82f6; 
+          }
         </style>
       </div>
     `)
   } catch (error) {
-    // 予期せぬエラー（DB切断など）が発生した場合の処理
+    // 【異常事態への備え】
+    // DBが止まっているなどのトラブル時に、コンソールに原因を記録してユーザーに通知します。
     console.error("Fragment Fetch Error:", error)
     return c.html(html`
       <div id="slot-list-container">
