@@ -1,54 +1,121 @@
 -- =========================================================================
--- 04_DATABASE_SCHEMA v1.7
+-- 04_DATABASE_SCHEMA v2.2 (Full Master Model)
+-- =========================================================================
+-- [開発者向け運用・実装プロトコル]
+-- 1. 整合性保護: D1では PRAGMA foreign_keys = ON; を接続時に明示しない限り
+--    外部キー制約が機能しません。親レコード削除時の挙動は CASCADE を基本とします。
+-- 2. 時刻更新: SQLiteは updated_at を自動更新しません。アプリ側で INSERT/UPDATE 
+--    実行時に必ず Unix Timestamp (10桁) をセットしてください。
+-- 3. 冪等性: 決済完了等のイベント処理は processed_events の一意制約を活用し、
+--    Stripe Webhook の重複到達からシステムを守ります。
 -- =========================================================================
 -- [実行コマンド / ローカル環境]
 -- npx wrangler d1 execute shizentaiga_db --local --file=./src/db/schema.sql
---
--- [実行コマンド / 本番環境]
--- npx wrangler d1 execute shizentaiga_db --remote --file=./src/db/schema.sql
+-- ※本番環境では「--remote」に変更するが、運用への影響を考慮すること。(基本は初回のみ実行。)
+-- データベース名を確認：npx wrangler d1 list
+-- テーブル名の一覧：npx wrangler d1 execute shizentaiga_db --local --command="SELECT name FROM sqlite_master WHERE type='table';"
+-- カラム名の一覧：npx wrangler d1 execute shizentaiga_db --local --command="SELECT sql FROM sqlite_master WHERE type='table';"
 -- =========================================================================
 
--- 予約枠管理メインテーブル
--- 予約のライフサイクル（空き→仮確保→確定）を厳密に管理する。
--- 「同一スタッフの同時刻重複」を物理的に排除する制約を含む。
-CREATE TABLE IF NOT EXISTS slots (
-    tenant_id     TEXT    NOT NULL,        -- 事業者（テナント）を識別する一意識別子
-    id            TEXT    PRIMARY KEY,     -- 予約枠のユニークID（ULID推奨）
-    service_id    TEXT    NOT NULL,        -- 提供するサービスプランの識別子
-    staff_id      TEXT    NOT NULL,        -- 担当スタッフの識別子
-    date_string   TEXT    NOT NULL,        -- 検索用日付文字列（JST固定: 'YYYY-MM-DD'）
-    start_at_unix INTEGER NOT NULL,        -- 予約開始時間（10桁 Unix Timestamp）
-    slot_duration INTEGER NOT NULL,        -- 予約枠の長さ（分単位 / 在庫の最小粒度）
-    status        TEXT    NOT NULL         -- 現在の状態管理
-        CHECK (status IN ('available', 'pending', 'booked', 'error')),
-    expires_at    INTEGER,                 -- 仮確保(pending)の有効期限（10桁 Unix Timestamp）
-    retry_count   INTEGER DEFAULT 0,       -- 決済失敗時等のリトライ回数
-    last_retry_at INTEGER,                 -- 最終リトライ実行日時
-    created_at    INTEGER NOT NULL,        -- レコード作成日時（障害追跡用）
-    updated_at    INTEGER NOT NULL         -- 最終更新日時（アプリ側で秒単位タイムスタンプをセット）
+-- 既存テーブルのクリーンアップ
+DROP TABLE IF EXISTS slots;
+DROP TABLE IF EXISTS staff_schedules;
+DROP TABLE IF EXISTS processed_events;
+DROP TABLE IF EXISTS plans;
+DROP TABLE IF EXISTS staffs;
+DROP TABLE IF EXISTS shops;
+
+-- -------------------------------------------------------------------------
+-- 1. マスタテーブル群（Foundation）
+-- -------------------------------------------------------------------------
+
+-- 店舗マスタ
+CREATE TABLE shops (
+    shop_id   TEXT PRIMARY KEY,
+    name      TEXT NOT NULL,
+    created_at INTEGER NOT NULL
 );
 
--- 【業務制約】同一スタッフによる同時刻の枠生成をDBレベルで禁止し、二重予約を物理的に防止する
-CREATE UNIQUE INDEX IF NOT EXISTS idx_slots_unique_business_rule
-    ON slots (tenant_id, staff_id, start_at_unix);
-
--- 【検索最適化】カレンダー表示および空き枠検索を極限まで高速化する（カバリングインデックス）
-CREATE INDEX IF NOT EXISTS idx_slots_search_optimized 
-    ON slots (tenant_id, service_id, date_string, status);
-
--- 【運用最適化】期限切れの仮確保枠（pending）を Cron 等で効率的に回収するためのインデックス
-CREATE INDEX IF NOT EXISTS idx_slots_pending_manager
-    ON slots (status, expires_at);
-
--- べき等性管理テーブル
--- Stripe Webhook 等の外部イベントの二重処理を物理的に防止する（べき等性の担保）
-CREATE TABLE IF NOT EXISTS processed_events (
-    event_id     TEXT    PRIMARY KEY,      -- 外部イベントの一意識別子（Stripe ID 等）
-    provider     TEXT    DEFAULT 'stripe', -- 決済プロバイダ名（将来の多角化に対応）
-    tenant_id    TEXT    NOT NULL,         -- 該当イベントの所属テナント
-    processed_at INTEGER NOT NULL          -- 処理実行日時（10桁 Unix Timestamp）
+-- スタッフマスタ
+CREATE TABLE staffs (
+    staff_id     TEXT PRIMARY KEY,
+    shop_id      TEXT NOT NULL,
+    real_name    TEXT NOT NULL,       -- 管理用
+    display_name TEXT NOT NULL,       -- 予約画面表示用
+    created_at   INTEGER NOT NULL,
+    -- 店舗が削除された場合、紐づくスタッフも削除する（幽霊データ防止）
+    FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE
 );
 
--- 【メンテナンス最適化】過去のイベントログをクリーンアップするためのインデックス
-CREATE INDEX IF NOT EXISTS idx_processed_at_cleanup
-    ON processed_events (processed_at);
+-- サービスプランマスタ
+CREATE TABLE plans (
+    plan_id      TEXT PRIMARY KEY,
+    shop_id      TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    duration_min INTEGER NOT NULL,
+    price_amount INTEGER NOT NULL,
+    created_at   INTEGER NOT NULL,
+    FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE
+);
+
+-- -------------------------------------------------------------------------
+-- 2. 稼働・予約テーブル群（Transactions）
+-- -------------------------------------------------------------------------
+
+-- スタッフ稼働枠（供給：Supply）
+CREATE TABLE staff_schedules (
+    schedule_id   TEXT PRIMARY KEY,
+    staff_id      TEXT NOT NULL,
+    date_string   TEXT NOT NULL,      -- JST: 'YYYY-MM-DD'
+    start_at_unix INTEGER NOT NULL,   -- 対応開始時間
+    end_at_unix   INTEGER NOT NULL,   -- 対応終了時間
+    created_at    INTEGER NOT NULL,
+    FOREIGN KEY (staff_id) REFERENCES staffs(staff_id) ON DELETE CASCADE
+);
+
+-- 予約本体（需要・証跡：Need）
+CREATE TABLE slots (
+    slot_id           TEXT PRIMARY KEY,
+    plan_id           TEXT NOT NULL,
+    staff_id          TEXT NOT NULL,
+    user_email        TEXT,
+    status            TEXT NOT NULL CHECK (status IN ('pending', 'booked', 'cancelled', 'error')),
+    start_at_unix     INTEGER NOT NULL,
+    end_at_unix       INTEGER NOT NULL,
+    actual_price      INTEGER NOT NULL, -- 予約時点の金額を固定（証跡）
+    actual_duration   INTEGER NOT NULL, -- 予約時点の時間を固定（証跡）
+    stripe_session_id TEXT,
+    expires_at        INTEGER,          -- 仮確保の有効期限
+    created_at        INTEGER NOT NULL,
+    updated_at        INTEGER NOT NULL, -- アプリ側で都度更新必須
+    FOREIGN KEY (plan_id) REFERENCES plans(plan_id),
+    FOREIGN KEY (staff_id) REFERENCES staffs(staff_id) ON DELETE CASCADE
+);
+
+-- -------------------------------------------------------------------------
+-- 3. 信頼性テーブル（Log）
+-- -------------------------------------------------------------------------
+
+-- べき等性管理（Stripe Webhook重複防止）
+CREATE TABLE processed_events (
+    event_id     TEXT PRIMARY KEY,
+    provider     TEXT DEFAULT 'stripe',
+    processed_at INTEGER NOT NULL
+);
+
+-- -------------------------------------------------------------------------
+-- 4. インデックス設計（Optimization）
+-- -------------------------------------------------------------------------
+
+CREATE INDEX idx_staffs_shop ON staffs (shop_id);
+CREATE INDEX idx_plans_shop ON plans (shop_id);
+CREATE INDEX idx_schedules_date ON staff_schedules (staff_id, date_string);
+
+-- 予約検索および二重予約防止のためのルックアップ
+CREATE INDEX idx_slots_lookup ON slots (staff_id, start_at_unix, status);
+
+-- 期限切れ pending 枠の一括クリーンアップおよび在庫計算からの除外用
+CREATE INDEX idx_slots_expiry ON slots (status, expires_at);
+
+-- 決済イベントの逆引き用
+CREATE INDEX idx_slots_stripe_session ON slots (stripe_session_id);

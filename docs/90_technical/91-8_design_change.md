@@ -125,7 +125,7 @@ export const Services = () => {
         </section>
       </div>
 
-      <div class="fixed bottom-0 w-full bg-white/95 backdrop-blur-md py-6 border-t border-gray-200 z-[100] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.08)]">
+      <div class="fixed bottom-0 w-full bg-white/95 backdrop-blur-md py-6 border-t border-gray-200 z-100 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.08)]">
         <div class="max-w-3xl mx-auto px-6 flex justify-between items-center">
           <div class="summary-text">
             <div class="text-[10px] text-gray-500 font-medium tracking-wide mb-1 uppercase">
