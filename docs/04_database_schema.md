@@ -1,154 +1,101 @@
-# 04_データベーススキーマ設計書 (Database Schema Design)
+# 04_データベーススキーマ設計書 (Database Schema Design) v2.5
 
-本ドキュメントは、Cloudflare D1 におけるテーブル定義を定義する。
-**「最速の立ち上げ」と「構造によるミス防止（安全性）」の両立**を目的とする。
+本ドキュメントは、Cloudflare D1 におけるデータベース構造の全体像と運用思想を定義する。「最速の立ち上げ」と「運用フェーズでの追跡可能性（Observability）」の両立を目的とする。
+
+> ※各テーブルの具体的なカラム定義・制約については、常に最新の `src/db/schema.sql` のコメントを参照すること。
 
 ---
 
 ## 1. データベース基本情報
 
 | 項目 | 内容 |
-|---|---|
-| Binding名 | shizentaiga_db |
-| 論理名 | shizentaiga_db |
-| プラットフォーム | Cloudflare D1（SQLite） |
+|------|------|
+| Binding名 | `shizentaiga_db` |
+| プラットフォーム | Cloudflare D1（SQLiteベース） |
 | 時刻規約 | Unix Timestamp（10桁・秒単位）/ 日付文字列は JST 固定 |
+| 外部キー制約 | 接続時に `PRAGMA foreign_keys = ON;` を必須とする |
 
 ---
 
-## 2. テーブル定義
+## 2. テーブル構成の概要と目的
 
-### 2.1 `slots`（予約枠・在庫管理）
+主要なテーブル群を「マスタ」「トランザクション」「ログ」の3層で構成する。
 
-| カラム名 | 型 | 制約 | 説明 |
-|---|---|---|---|
-| `tenant_id` | TEXT | NOT NULL | 事業者識別子 |
-| `id` | TEXT | PRIMARY KEY | 枠の一意識別子（ULID推奨） |
-| `service_id` | TEXT | NOT NULL | サービスプラン ID |
-| `staff_id` | TEXT | NOT NULL | 担当者 ID |
-| `date_string` | TEXT | NOT NULL | JST 固定: `YYYY-MM-DD` |
-| `start_at_unix` | INTEGER | NOT NULL | 開始時刻（10桁 Unix） |
-| `slot_duration` | INTEGER | NOT NULL | 枠の長さ（分）※在庫の粒度 |
-| `status` | TEXT | NOT NULL | `available` / `pending` / `booked` / `error` |
-| `expires_at` | INTEGER | — | 仮確保の期限（10桁 Unix） |
-| `retry_count` | INTEGER | DEFAULT 0 | 連携リトライ数 |
-| `created_at` | INTEGER | NOT NULL | 作成時刻（10桁 Unix） |
-| `updated_at` | INTEGER | NOT NULL | 更新時刻（10桁 Unix） |
+### 2.1 マスタ層（Foundation）
 
-### 2.2 `processed_events`（冪等性管理）
+ビジネスの土台となる静的なデータを管理する。
 
-| カラム名 | 型 | 制約 | 説明 |
-|---|---|---|---|
-| `event_id` | TEXT | PRIMARY KEY | 外部イベント ID（`evt_...` 等） |
-| `provider` | TEXT | DEFAULT `'stripe'` | 決済プロバイダ名（stripe / paypal 等） |
-| `processed_at` | INTEGER | NOT NULL | 処理完了日時（10桁 Unix） |
+- **`shops`（店舗）**: サービス提供の拠点を定義。
+- **`staffs`（スタッフ）**: 施術者を定義。本名と表示名を分離し、プライバシーに配慮。
+- **`plans`（プラン）**: サービス内容、価格、所要時間を管理。`status` による論理削除（`archived`）を基本とし、過去の予約証跡を保護する。
 
----
+### 2.2 トランザクション層（Transactions）
 
-## 3. SQL 実装コード（`src/db/schema.sql`）
+日々の流動的な在庫と需要を管理する。
 
-~~~sql
--- 予約枠管理テーブル
-CREATE TABLE IF NOT EXISTS slots (
-    tenant_id     TEXT    NOT NULL,
-    id            TEXT    PRIMARY KEY,
-    service_id    TEXT    NOT NULL,
-    staff_id      TEXT    NOT NULL,
-    date_string   TEXT    NOT NULL,        -- アプリ側で必ず JST 形式（YYYY-MM-DD）を生成
-    start_at_unix INTEGER NOT NULL,
-    slot_duration INTEGER NOT NULL,
-    status        TEXT    NOT NULL
-        CHECK (status IN ('available', 'pending', 'booked', 'error')),
-    expires_at    INTEGER,
-    retry_count   INTEGER DEFAULT 0,
-    created_at    INTEGER NOT NULL,
-    updated_at    INTEGER NOT NULL
-);
+- **`staff_schedules`（スタッフ稼働枠）**:  
+  スタッフごとの「供給」を定義。業界特有の「同時並行施術」に対応するため、時間の重複登録を許容する設計。
 
--- 【重要】業務ロジック制約：同一スタッフの同時刻重複を DB レベルで禁止
-CREATE UNIQUE INDEX IF NOT EXISTS idx_slots_unique_business_rule
-    ON slots (tenant_id, staff_id, start_at_unix);
+- **`slots`（予約本体）**:  
+  ユーザーの「需要」と「成約」を記録。予約時点の価格や時間を固定（デナリゼーション）することで、後の価格改定によるトラブルを防止する。
 
--- カレンダー検索の高速化（カバリングインデックス）
-CREATE INDEX IF NOT EXISTS idx_slots_search_optimized
-    ON slots (tenant_id, service_id, date_string, status);
+### 2.3 信頼性・ログ層（Observability & Lifecycle）
 
--- 期限切れ仮予約の抽出用
-CREATE INDEX IF NOT EXISTS idx_slots_pending_manager
-    ON slots (status, expires_at);
+決済連携の失敗やシステム間の不整合を検知・解決する。
 
--- 決済処理済みイベント管理テーブル
-CREATE TABLE IF NOT EXISTS processed_events (
-    event_id     TEXT    PRIMARY KEY,
-    provider     TEXT    DEFAULT 'stripe',
-    processed_at INTEGER NOT NULL
-);
-
--- 過去ログ削除用インデックス
-CREATE INDEX IF NOT EXISTS idx_processed_at_cleanup
-    ON processed_events (processed_at);
-~~~
+- **`processed_events`（決済プロセス管理）**:  
+  Stripe 決済ボタン押下時から Webhook 受信完了までの全ライフサイクルを記録。Stripe 側の障害と自社側のバグを即座に切り分けるための「航海日誌」の役割を果たす。
 
 ---
 
-## 4. テナント隔離プロトコル（Isolation Protocol）
+## 3. SQL 実装コード（信頼のソース）
 
-「実装漏れは必ず起きる」という前提に立ち、人的ミスを構造的に排除する。
+最新のテーブル定義およびインデックス設計は、プロジェクトルートの以下のファイルを確認すること。
 
-| フェーズ | 対策 | 内容 |
-|---|---|---|
-| 【即時】 | 型によるガード（Repository Pattern） | DB操作関数の第一引数を必ず `tenantId: string` とする。引数を忘れるとコンパイルエラーになり、実装漏れを機械的に阻止 |
-| 【中期】 | クエリビルダーによる自動付与 | Drizzle ORM 等の導入時、テナント ID をセットしないとクエリが実行できない「薄いラッパー」を実装し、`WHERE` 句を自動挿入 |
-| 【長期】 | 物理隔離への移行 | テナントごとに D1 インスタンスを分離（1 Tenant = 1 D1）し、論理的なデータ漏洩リスクを物理的にゼロにする |
+```
+📁 src/db/schema.sql
+```
 
----
-
-## 5. 運用ルール
-
-### 5.1 アプリケーション実装規約
-
-| 項目 | 規約 |
-|---|---|
-| Timezone | `date_string` は必ず `Asia/Tokyo` 基準で生成する純粋関数（`formatDateJST` 等）を使用し、テストコードで担保する |
-| Atomic Update | 在庫確保時は必ず `WHERE status = 'available'` を含め、DB レベルでの競合排除を行う |
-
-### 5.2 仮予約（`pending`）の回収ロジック
-
-| 対応時期 | 内容 |
-|---|---|
-| 暫定 | 空き枠検索時に `(status = 'available') OR (status = 'pending' AND expires_at < now())` を考慮するか、検索直前に期限切れを判定する |
-| 将来 | Cron Triggers を 5〜10 分間隔で実行し、期限切れ枠を `available` へ自動復旧する清掃ジョブを実装する |
-
-### 5.3 分析・拡張
-
-| 項目 | 内容 |
-|---|---|
-| `provider` | Stripe 以外の決済手段導入に備え、プロバイダカラムを維持する |
-| `retry_count` | 将来的に `retry_reason` カラムを追加し、失敗原因の分析を可能にする |
+> **注記**: 本ファイル内のコメントは、エンジニア・監査人向けの「実装プロトコル」として機能する。コード修正時はコメントも必ず更新すること。
 
 ---
 
-## 6. スタートアップ期の懸念事項・注意点
+## 4. 運用ルールと安全性
 
-### ⚠️ `staff_id` の初期値設計
+### 4.1 決済データの整合性（Idempotency）
 
-現段階では担当者が1名（清善 泰賀）のため `staff_id` は固定値になる想定だが、
-**固定値をハードコードせず `constants/info.ts` 経由で参照する**こと。
-将来の複数スタッフ対応時に、定数を変えるだけで済む設計を維持する。
+Stripe Webhook は複数回届く可能性がある。`processed_events` の一意識別子を活用し、同一イベントに対する二重の予約確定処理を物理的に防止する。
 
-### ⚠️ `service_id` の定義タイミング
+### 4.2 仮予約（pending）の自浄作用
 
-`service_id` の値体系（例: `spot` / `advisor`）は、`constants/info.ts` の
-`BUSINESS_INFO` と必ず一致させること。設計が先行してデータが後から定義されると、
-シードデータと本番データで不整合が生じるリスクがある。
+在庫確保（`pending`）には `expires_at` を設定する。検索クエリにて「有効期限内の `pending`」と「確定済みの `booked`」を在庫から除外するロジックを実装し、決済離脱者による在庫の食い潰しを防ぐ。
 
-### ⚠️ `processed_events` の肥大化
+### 4.3 証跡保護（Audit Trail）
 
-テキストデータのため容量的な問題は低リスクだが、**削除ポリシーを設計書に明記**しておくことを推奨する。
-例: `processed_at < (now - 90日)` のレコードを定期的に削除する Cron ジョブを将来的に追加する。
+一度でも予約に使用された `plans` レコードは、物理削除（`DELETE`）してはならない。`status='archived'` を適用し、システム上は非表示にしつつ、売上集計や過去履歴の参照を保証する。
 
-### ⚠️ マイグレーション運用
+---
 
-スタートアップ期はスキーマ変更が頻繁に発生しやすい。
-`wrangler d1 execute` によるローカル検証を必ず経由し、
-**本番 D1 への直接 DDL 実行は厳禁**とすること。
+## 5. 将来の拡張と懸念事項
+
+- **テナント隔離**: 将来的なマルチテナント化に備え、各テーブルに `shop_id` を配備している。クエリ実行時は常にこの ID によるフィルタリングを意識すること。
+- **同時並行施術の制御**: DB レベルでの重複制約は設けていないため、アプリケーション層の在庫計算ロジック（担当者のキャパシティ判定）がシステムの心臓部となる。
+- **マイグレーション**: `wrangler d1 execute` を使用したローカル検証を必須とし、本番環境への破壊的変更は慎重に行うこと。
+
+---
+
+## 付記：レビュー上の懸念事項
+
+以下は、本設計書をレビューした観点から補足する論点である。設計の否定ではなく、**意思決定の明示化**を目的とする。
+
+### A. 時刻規約の混在リスク
+
+Unix Timestamp（秒）と JST 日付文字列の両形式が共存する。アプリケーション層での変換ミス（ミリ秒との混同、タイムゾーン変換漏れ）は予約時刻のズレに直結する。変換処理は単一のユーティリティ関数に集約し、直接操作を禁止する実装規約を別途定めることを推奨する。
+
+### B. `shop_id` フィルタ漏れの検知手段
+
+マルチテナント対応の根幹である `shop_id` フィルタは、現状アプリケーション層の自律に委ねられている。フィルタ漏れによるテナント間のデータ混在は重大なインシデントとなる。将来の拡張フェーズに備え、Row Level Security に相当するミドルウェアレイヤー（クエリラッパー）の導入を検討すること。
+
+### C. `processed_events` の肥大化
+
+全決済ライフサイクルを記録する設計上、レコード数は時間とともに増大する。D1 はストレージ上限が存在するため、一定期間経過後の `completed` / `failed` レコードのアーカイブポリシー（別テーブルへの退避、または R2 への JSON エクスポート）を運用開始前に定義しておくことを推奨する。
