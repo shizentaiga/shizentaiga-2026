@@ -1,10 +1,7 @@
-# 04_データベーススキーマ設計書 (Database Schema Design) v1.7
+# 04_データベーススキーマ設計書 (Database Schema Design)
 
 本ドキュメントは、Cloudflare D1 におけるテーブル定義を定義する。
 **「最速の立ち上げ」と「構造によるミス防止（安全性）」の両立**を目的とする。
-
-**最終更新日**: 2026-04-07
-**作成者**: 清善 泰賀
 
 ---
 
@@ -12,6 +9,7 @@
 
 | 項目 | 内容 |
 |---|---|
+| Binding名 | shizentaiga_db |
 | 論理名 | shizentaiga_db |
 | プラットフォーム | Cloudflare D1（SQLite） |
 | 時刻規約 | Unix Timestamp（10桁・秒単位）/ 日付文字列は JST 固定 |

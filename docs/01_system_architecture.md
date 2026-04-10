@@ -1,201 +1,150 @@
-# システム全体設計書 (System Architecture Design) v1.2
+# システム全体設計書 (System Architecture Design)
 
 **プロジェクト名**: shizentaiga-2026  
-**最終更新日**: 2026-04-07  
 **設計者**: 清善 泰賀  
 
 ---
 
-## 1. システムアーキテクチャ
+## 1. 設計思想と技術選定
 
-Cloudflare のエッジコンピューティングを核とした「自己修復型・フルスタック構成」を採用する。
+### 1.1 基本思想
 
-### 1.1 全体構造
-
-| レイヤー | 技術 |
+| 思想 | 内容 |
 |---|---|
-| Entry Point | Cloudflare Workers (Hono Framework) |
-| Frontend | Hono JSX (Vite) |
-| Database | Cloudflare D1 (D1 Manager) |
-| 決済 | Stripe Checkout / Webhooks |
-| 通知 | Resend（メール配送） |
-| 外部同期 | Google Calendar API |
+| Edge First | Cloudflare のエッジネットワークで処理を完結させ、レイテンシを最小化 |
+| JavaScript 最小化 | HTMX による部分更新を採用し、クライアント側のコード複雑性を排除 |
+| 型安全 | TypeScript を全レイヤーで統一し、仕様変更の影響範囲を型で明確化 |
 
-### 1.2 システム全体データフロー
+### 1.2 技術スタック
 
-~~~
-[User Browser]
-     |
-     v
-[Cloudflare Edge (Hono / Workers)]
-     |
-     +---> [Cloudflare D1]          # 予約枠・冪等性テーブル
-     |
-     +---> [Stripe Checkout]        # 単発・スポット決済
-     |         |
-     |         +<-- [Stripe Webhook]  # 確定・失効イベント受信
-     |
-     +---> [Resend API]             # 顧問契約フォーム → メール配送
-~~~
-
-### 1.3 Services.tsx 遷移フロー
-
-~~~
-[Services.tsx]
-     |
-     +--[単発・スポット選択]--> URLパラメータ付与
-     |                              |
-     |                              v
-     |                     POST /api/checkout
-     |                              |
-     |                              v
-     |                     [Stripe Checkout]
-     |
-     +--[顧問契約選択]----> [Contact Form]
-                                    |
-                                    v
-                            POST /api/contact
-                                    |
-                                    v
-                            [Resend API]
-                                    |
-                                    v
-                    メール配送 → shizentaiga.com
-~~~
-
----
-
-## 2. ソフトウェア設計 (Hono / TypeScript)
-
-### 2.1 ディレクトリ構造
-
-~~~
-/src
-  ├── index.tsx          # ルーティング・ミドルウェア定義
-  ├── renderer.tsx       # JSX レイアウト・SEO管理
-  ├── pages/             # 各画面コンポーネント
-  │   ├── Top.tsx
-  │   ├── Services.tsx   # プラン選択・カレンダー・遷移起点
-  │   ├── Legal.tsx
-  │   └── Thanks.tsx
-  ├── components/        # 再利用可能UI部品
-  │   ├── CalendarSection.tsx
-  │   ├── ServicePlanCard.tsx
-  │   └── BookingFooter.tsx
-  ├── db/                # D1 操作層
-  │   ├── schema.sql     # テーブル定義 (v1.8準拠)
-  │   └── queries.ts     # アトミックな在庫更新クエリ
-  ├── lib/               # ユーティリティ・外部API
-  │   ├── stripe.ts      # 決済ロジック (31分期限設定含む)
-  │   ├── resend.ts      # お問い合わせメール送信
-  │   └── notifier.ts    # 予約確定通知・iCal生成
-  └── constants/
-      └── info.ts        # サービス名・価格・連絡先等のマスタ
-~~~
-
-### 2.2 ルーティング定義
-
-| メソッド | パス | 処理内容 |
+| レイヤー | 技術 | 役割・特徴 |
 |---|---|---|
-| GET | `/` | トップページ |
-| GET | `/services` | サービス一覧・予約枠選択 |
-| POST | `/api/checkout` | Stripe 決済セッション作成（31分期限指定） |
-| POST | `/api/webhook` | Stripe Webhook 受信（冪等性チェック実装） |
-| POST | `/api/contact` | 顧問契約フォーム送信 → Resend API 経由でメール配送 |
+| Core Language | TypeScript | 全レイヤーで型安全性を担保。仕様変更時の影響範囲を明確化 |
+| Runtime | Cloudflare Workers + Hono | エッジ環境で動作する軽量 Web フレームワーク |
+| Rendering | Hono JSX（SSR） | サーバーサイドで型安全に HTML を生成。SEO と初期表示速度を最適化 |
+| Dynamic UI | HTMX | HTML 拡張による部分更新。JS 依存を最小化し、SPA 不使用 |
+| Styling | Tailwind CSS | ユーティリティファーストによる高速・一貫性のある UI 実装 |
+| Database | Cloudflare D1（SQLite） | Workers と高い親和性を持つサーバーレス RDB |
+| Payments | Stripe Checkout / Webhooks | 決済処理と Webhook による非同期な整合性担保（冪等性対応） |
+| Email | Resend | トランザクションメール（予約確認・通知）を高到達率で配信 |
 
-### 2.3 URL Schema（URL-Driven Architecture）
-
-セッションを使わず、URLパラメータで状態を引き回す設計を採用する。
+### 1.3 レイヤー構成図
 
 ~~~
-/services?plan={plan_id}&date={YYYY-MM-DD}&slot={slot_id}
+Browser
+  │
+  │  HTML + HTMX（部分更新）
+  ▼
+Cloudflare Workers（Edge Runtime）
+  │
+  ├── Hono（ルーティング・ミドルウェア）
+  │      └── Hono JSX（SSR・HTML生成）
+  │
+  ├── Cloudflare D1（SQLite）      ← 予約枠・冪等性管理
+  │
+  ├── Stripe（Checkout / Webhook） ← 決済・非同期整合性
+  │
+  └── Resend                       ← トランザクションメール
 ~~~
-
-| パラメータ | 型 | 例 | 用途 |
-|---|---|---|---|
-| `plan` | string | `spot` / `advisor` | プラン識別子 |
-| `date` | string | `2026-04-07` | JST日付（カレンダー選択値） |
-| `slot` | string | `slot_001` | 枠識別子（D1の `id` と対応） |
-
-**注意事項**: サーバー側で全パラメータのバリデーションを必ず実施し、不正値による誤処理を防止する。
 
 ---
 
-## 3. データベース設計 (Cloudflare D1)
+## 2. 技術選定の補足（Rationale）
 
-### 3.1 主要テーブル構成
+### Hono JSX（SSR）を選んだ理由
 
-**slots（在庫・予約管理）**
+React 等のクライアントサイドレンダリングを採用せず、サーバー側で HTML を完成させて返す。
+初期表示の高速化・SEO 対応・クライアント側の JS バンドルサイズ削減を同時に実現する。
 
-| カラム名 | 型 | 内容 |
+### HTMX を選んだ理由
+
+予約フローのような「部分的な画面更新」に SPA は過剰である。HTMX により、複雑な JavaScript ロジックを記述することなく動的な UI を実現し、フレームワークの寿命に左右されない長期的な保守コストの低減を図る。
+
+### Tailwind CSS を選んだ理由
+
+独自の CSS ファイル肥大化を防ぎ、HTML クラス名のみで一貫性のあるデザインを完結させる。
+レンダリングをブロックする CSS の読み込みを最小限に抑え、PSI スコアの維持と開発スピードを両立する。
+
+### Stripe Webhook + 冪等性対応
+
+決済通知は非同期で届くため、ネットワーク障害や重複配信への耐性が不可欠である。
+`processed_events` テーブルによる冪等性管理を行い、二重予約等の致命的な整合性エラーを技術的に封鎖する。
+
+---
+
+## 3. ソフトウェア設計
+
+### 3.1 URL Schema（URL-Driven Architecture）
+
+状態管理をサーバーセッションに依存させず、URL パラメータで引き回す。
+在庫がプランに縛られないため、オフセット（開始位置）を考慮した設計とする。
+
+~~~
+/services?plan={plan_id}&slot={slot_id}&offset={minutes}
+~~~
+
+| パラメータ | 型 | 用途 |
 |---|---|---|
-| `tenant_id` | TEXT (INDEX) | テナント識別子（初期値: `taiga_shizen`） |
-| `id` | TEXT (PK) | 枠識別子 |
-| `date_string` | TEXT (INDEX) | JST固定日付（`YYYY-MM-DD`） |
-| `start_at_unix` | INTEGER | 開始時刻（UTC Unix Timestamp） |
-| `status` | TEXT | `available` / `pending` / `booked` |
-| `expires_at` | INTEGER | 仮確保期限（UTC Unix Timestamp） |
-| `slot_duration` | INTEGER | 枠の長さ（分） |
+| `plan` | string | プラン識別子（`service_plans` の PK） |
+| `slot` | string | 在庫枠識別子（`slots` の PK） |
+| `offset` | number | 枠の開始地点から何分後に予約を開始するか（スライディング・ブロック対応） |
 
-**processed_events（決済冪等性管理）**
+### 3.2 外部連携の方針
 
-| カラム名 | 型 | 内容 |
-|---|---|---|
-| `event_id` | TEXT (PK) | Stripe Event ID |
-| `processed_at` | INTEGER | 処理日時（UTC Unix Timestamp） |
+Google カレンダー連携については今後の検討課題とする。当面は、管理者による DB 操作（SQL）または管理画面からの入力によって予約枠の投稿・在庫管理を行う運用とする。
 
 ---
 
-## 4. 決済・予約整合性ロジック
+## 4. データベース設計（Cloudflare D1）
 
-### 4.1 タイムスロット制御
+### 4.1 主要テーブル構成（v1.8 案）
 
-**仮確保（Soft Lock）**
+**`service_plans`（プラン定義）**
 
-- DB更新時に `WHERE status='available'` を条件とするアトミック更新。
-- DB仮確保期限: **35分** / Stripe セッション期限: **31分**（Stripe が先に失効することを保証）。
+| カラム名 | 内容 |
+|---|---|
+| `id` (PK) | プラン識別子 |
+| `service_duration` | 所要時間（分） |
+| `buffer_duration` | 前後バッファ（分） |
+| `price` | 販売価格 |
 
-**自己修復（Reconciliation）**
+**`slots`（在庫・予約管理）**
 
-- 5分間隔の Cron Trigger による期限切れ枠の自動開放。
-- `checkout.session.expired` Webhook による即時在庫復旧。
-
-### 4.2 Resend 連携（顧問契約フロー）
-
-~~~
-[Contact Form] --> POST /api/contact
-                        |
-                        v
-                  [Resend API]
-                        |
-                        v
-              shizentaiga.com へメール配送
-              （件名・フォーム内容・送信者情報を含む）
-~~~
-
-- 顧問契約は決済を伴わないリード獲得型フローのため、D1への書き込みは行わない。
-- メール送信失敗時のエラーハンドリングは呼び出し側（Honoハンドラ）で実装する。
+| カラム名 | 内容 |
+|---|---|
+| `id` (PK) | 枠識別子 |
+| `date_string` (INDEX) | JST 日付（`YYYY-MM-DD`） |
+| `start_at_unix` | 枠の開始点（Unix Timestamp） |
+| `slot_duration` | 枠全体の長さ（分） |
+| `status` | `available` / `pending` / `booked` |
+| `last_event_id` | 最後に処理した Stripe Event ID |
+| `updated_at` | 最終更新日時（順序制御用） |
 
 ---
 
-## 5. セキュリティ & パフォーマンス
+## 5. 決済・予約整合性ロジック
 
-| 項目 | 対策 | 効果 |
-|---|---|---|
-| Data Integrity | 全 DB クエリに `tenant_id` を含める | 将来のマルチテナント化を担保 |
-| タイムゾーン事故 | 時刻比較を全て Unix Timestamp (INTEGER) で統一 | JST/UTC逆転バグを封鎖 |
-| Performance | `date_string` への INDEX 付与 | カレンダー検索のフルスキャンを回避 |
-| URLパラメータ汚染 | サーバー側で全パラメータをバリデーション | 不正な `slot_id`・`plan` 値による誤処理を防止 |
-| Webhook 多重処理 | `processed_events` による冪等性ガード | ネットワーク再送時の二重処理を遮断 |
+### 5.1 タイムスロット制御
+
+| 項目 | 内容 |
+|---|---|
+| アトミック更新 | DB 更新時は `WHERE status='available'` を条件とし、エッジ環境での競合を防止 |
+| 期限管理 | DB 仮確保期限（35分）を Stripe セッション期限（31分）より長く設定し、Stripe 側の失効が先行することを保証 |
+
+### 5.2 Webhook 異常系への対応
+
+Stripe Webhook については、成功・失効イベントの逆転到達など、あらゆる異常パターンがあり得る。
+実装時に `updated_at` による順序保証等の統一的なガードロジックを検討・集約し、整合性を死守する。
 
 ---
 
-## メモ
-・Webhookの「競争状態（Race Condition）」への備え：「成功した直後に、古い失効イベントが届く」に対策する。  
+## メモ（実装時の確認事項）
 
-・2. D1の「Time-to-Consistency」への配慮：レプリケーションの遅延等で Webhook 処理中に最新の状態が見えない可能性がゼロではありません。
+- `offset` パラメータはスライディング・ブロック対応の設計だが、初期リリースでは固定値運用も可。複雑化する前に動作確認を優先する。
+- `service_plans` テーブルは現段階では `constants/info.ts` で代替できる。DB 化は予約フローが安定してから検討で十分。
+- `last_event_id` による順序保証は Webhook 異常系の対策として有効だが、`updated_at` との併用ロジックは実装時に一本化すること。
+- `slots` テーブルに `tenant_id` が含まれていない。
 
-・3.URL Schema のバリデーション（2.3項）：URLパラメータの price（もしあれば）は絶対に無視
+---
 
-・4. iCal 生成とタイムゾーン：Googleカレンダー連携用の .ics ファイルを作成する際、DTSTART / DTEND にはタイムゾーン指定（Asia/Tokyo）を含めるか、Z（UTC）表記に変換する必要があります。
-
+© 2026 Taiga Shizen.
