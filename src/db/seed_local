@@ -32,21 +32,21 @@ INSERT INTO slots (
     created_at,     -- レコード作成日時
     updated_at      -- 最終更新日時
 ) VALUES 
--- 2026-04-18 10:00 - 13:00 (180分)
--- 日本時間 10:00 = UTC 01:00
+-- 2026-04-18 18:00 - 23:00 (5時間=300分)
+-- 日本時間 18:00 = UTC 09:00
 (
     'tenant_shizentaiga', 
-    'slot_20260418_1000', 
-    'plan_consult_180', 
+    'slot_20260418_1800(str)', 
+    'plan_consult_300(str)', 
     'staff_shizentaiga', 
     '2026-04-18', 
-    unixepoch('2026-04-18 01:00:00'), 
+    unixepoch('2026-04-18 09:00:00'),  -- JST 18:00
     180, 
     'available', 
     unixepoch('2026-04-08 03:00:00'), -- JST 12:00
     unixepoch('2026-04-08 03:00:00')
 ),
--- 2026-04-25 10:00 - 13:00
+-- 2026-04-25 19:00 - 22:00(3時間)
 -- 日本時間 10:00 = UTC 01:00
 (
     'tenant_shizentaiga', 
