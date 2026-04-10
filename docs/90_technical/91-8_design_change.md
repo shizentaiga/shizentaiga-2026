@@ -12,7 +12,6 @@
 ### 2. 修正後のソースコード (src/pages/Services.tsx)
 
 /**
- * Aletheia Project - Production Ready Component
  * 役割: サービス一覧・予約状況の統合表示
  * 修正内容: ミニマルUIへの刷新、色のセマンティクス固定、レスポンシブ対応
  */
