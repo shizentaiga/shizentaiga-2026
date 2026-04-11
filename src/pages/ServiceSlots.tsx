@@ -1,133 +1,103 @@
 /**
- * @file ServiceSlots.tsx
- * @description 
- * カレンダーで日付がクリックされた際、その日の「予約ボタン一覧」だけを作る専用ファイルです。
- * ページ全体を書き換えるのではなく、特定の場所だけを最新の状態にする「部品（フラグメント）」を生成します。
+ * @file /src/db/booking-db.ts
+ * @description Cloudflare D1 (shizentaiga_db) から予約枠情報を取得・操作するデータアクセス層。
+ * 将来的なDB増設やシステム移行を見据え、バインド名を明示的に "shizentaiga_db" として扱います。
+ * 【運用ルール】SQL文には必ずリミット（LIMIT）を設定し、現在時刻以降のデータに絞り込むこと。
  */
 
-import { html } from 'hono/html'
-// データベースから予約情報を取ってくるための「道具(getAvailableSlotsFromDB)」と、
-// データの形を定義した「設計図(BookingSlot)」を読み込みます。
-import { getAvailableSlotsFromDB, BookingSlot } from '../db/booking-db'
+import { Context } from 'hono'
 
 /**
- * 【ロジック：時刻の見た目を整える】
- * DBにある数値（Unixタイムスタンプ）を、人間が見てわかる「10:00」のような形式に変えます。
- * * @param unixSeconds - 1970年1月1日からの経過秒数
- * @returns 日本時間での "HH:mm" 形式の文字列
+ * 取得上限の設定
+ * 一度のリクエストで読み込む最大件数を定義します。
  */
-// const formatJstTime = (unixSeconds: number): string => {
-//   // コンピュータはミリ秒で計算するため、秒単位を1000倍します
-//   const date = new Date(unixSeconds * 1000);
-  
-//   // 💡 重要：サーバーの場所に関わらず、強制的に「日本（東京）」の時間として文字にします。
-//   // これにより、海外のサーバー上でも、等しく同じ時刻が表示されます。
-//   return date.toLocaleTimeString('ja-JP', {
-//     timeZone: 'Asia/Tokyo',
-//     hour: '2-digit',    // 時を2桁で（09時など）
-//     minute: '2-digit',  // 分を2桁で
-//     hour12: false       // 24時間表記にする
-//   });
-// }
+const MAX_FETCH_COUNT = 100;
 
-const formatJstTime = (unixSeconds: number): string => {
-  const date = new Date(unixSeconds * 1000);
-  
-  // Intl.DateTimeFormat を使用して、確実に「日本時間」として文字列化します。
-  // これにより 9時間の計算ミスなどが物理的に発生しなくなります。
-  return new Intl.DateTimeFormat('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).format(date);
+/**
+ * 予約枠のデータ型定義（Schema v2.7 準拠）
+ * データベースのテーブルカラムと完全に一致させています。
+ */
+export interface BookingSlot {
+  slot_id: string;             // id -> slot_id
+  plan_id: string;             // service_id -> plan_id
+  staff_id: string;
+  date_string: string;         // JST固定: 'YYYY-MM-DD'
+  start_at_unix: number;       // 10桁 Unix Timestamp (秒単位)
+  end_at_unix: number;         // 終了時刻 (v2.7で追加)
+  booking_status: 'available' | 'pending' | 'booked' | 'error'; // status -> booking_status
+  actual_price_amount: number; // 予約時価格
+  actual_duration_min: number; // 予約時所要時間
+  stripe_session_id?: string;
+  expires_at?: number;
+  created_at: number;
+  updated_at: number;
 }
 
 /**
- * 【メインハンドラー：ServiceSlots】
- * Hono（サーバー）が「/services/slots」へのリクエストを受け取った時に実行されるメイン処理です。
+ * データベースから「現在以降」の予約可能な枠を取得する（最大100件）
+ * @param c - HonoのContext。env内のDBバインディングへのアクセスに使用します。
+ * @returns 予約可能状態 ('available') かつ未来のスロット配列。失敗時は空配列を返します。
  */
-export const ServiceSlots = async (c: any) => {
-  // 1. カレンダーから送られてきた日付（例：2026-04-10）を読み取ります。
-  const targetDate = c.req.query('date')
-
-  // 【安全策：日付が届かなかった場合】
-  // エラーで画面が真っ白にならないよう、赤い文字で警告メッセージを返します。
-  if (!targetDate) {
-    return c.html(html`
-      <div id="slot-list-container">
-        <p style="color: #ef4444;">日付が指定されていません。</p>
-      </div>
-    `)
-  }
-
+export const getAvailableSlotsFromDB = async (c: Context): Promise<BookingSlot[]> => {
   try {
     /**
-     * 2. データベースへのお問い合わせ
-     * await を使うことで、DBからデータが届くまで少しだけ「待機」します。
-     * rawSlots には、DBにあるすべての予約枠がリスト形式で入ります。
+     * 【重要】Binding名の明示的な指定
+     * wrangler.json の "binding": "shizentaiga_db" を直接参照します。
      */
-    const rawSlots: BookingSlot[] = await getAvailableSlotsFromDB(c)
+    const shizentaiga_db = c.env.shizentaiga_db;
+
+    if (!shizentaiga_db) {
+      console.warn('[DB] Binding "shizentaiga_db" is not found in environment. Check your wrangler.json.');
+      return [];
+    }
 
     /**
-     * 3. 必要なデータだけを抽出（フィルタリング）
-     * 100件のデータがあっても、今日クリックされた日付と一致するものだけに絞り込みます。
+     * 現在時刻（Unix秒）の取得
+     * JSの Date.now() はミリ秒(13桁)のため、1000で割って秒単位(10桁)に変換します。
      */
-    const filteredSlots = rawSlots.filter(slot => slot.date_string === targetDate)
+    const nowUnix = Math.floor(Date.now() / 1000);
 
     /**
-     * 4. 画面に表示するHTMLの組み立て
-     * id="slot-list-container" という名前をつけることで、
-     * HTMX（フロントエンド側）が「ここを書き換えればいいんだな」と自動判別します。
+     * クエリ実行：未来の予約可能なスロットのみを抽出
+     * 1. 過去のデータを除外するため `start_at_unix > ?` を追加。
+     * 2. PSI（表示速度）維持のため、SELECT * を避け必要なカラムを明示。
+     * 3. v2.7 のカラム名 (booking_status等) を使用。
      */
-    return c.html(html`
-      <div id="slot-list-container" class="fade-in">
-        <h3 style="font-size: 0.75rem; font-weight: bold; margin-bottom: 1rem; color: #4b5563; letter-spacing: 0.1em;">
-          ${targetDate} の予約可能枠
-        </h3>
-        
-        <div style="display: grid; gap: 0.5rem; grid-template-columns: repeat(2, 1fr);">
-          ${filteredSlots.length > 0 
-            ? filteredSlots.map(slot => {
-                // 各データごとに「10:00」「13:30」などの文字を作ります
-                const displayTime = formatJstTime(slot.start_at_unix);
-                
-                return html`
-                  <button 
-                    type="button"
-                    class="slot-btn"
-                    style="padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; background: white; font-size: 0.875rem; cursor: pointer; transition: all 0.2s;"
-                    onclick="console.log('Selected Slot ID: ${slot.id}')"
-                  >
-                    ${displayTime}
-                  </button>
-                `
-              })
-            : html`<p style="font-size: 0.875rem; color: #9ca3af;">現在、ご案内できる枠がありません。</p>`
-          }
-        </div>
+    const response = await shizentaiga_db.prepare(
+      `SELECT 
+        slot_id, plan_id, staff_id, date_string, 
+        start_at_unix, end_at_unix, booking_status, 
+        actual_price_amount, actual_duration_min,
+        stripe_session_id, expires_at, created_at, updated_at
+       FROM slots 
+       WHERE booking_status = 'available' 
+         AND start_at_unix > ?
+       ORDER BY start_at_unix ASC
+       LIMIT ?`
+    ).bind(nowUnix, MAX_FETCH_COUNT).all();
 
-        <style>
-          .fade-in { animation: fadeIn 0.3s ease-in-out; }
-          @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-          
-          /* マウスを重ねた（ホバーした）時のボタンの色を青色に変えます */
-          .slot-btn:hover { 
-            background-color: #f9fafb !important; 
-            border-color: #3b82f6 !important; 
-            color: #3b82f6; 
-          }
-        </style>
-      </div>
-    `)
+    /**
+     * 型安全のためのキャスト
+     * 環境により .all<T>() がエラーとなる場合があるため、
+     * results に対して明示的に型アサーションを行っています。
+     */
+    const results = (response.results || []) as unknown as BookingSlot[];
+
+    console.log(`[DB] Successfully fetched ${results.length} future slots. (Limit: ${MAX_FETCH_COUNT})`);
+    
+    return results;
+
   } catch (error) {
-    // 【異常事態への備え】
-    // DBが止まっているなどのトラブル時に、コンソールに原因を記録してユーザーに通知します。
-    console.error("Fragment Fetch Error:", error)
-    return c.html(html`
-      <div id="slot-list-container">
-        <p style="color: #ef4444; font-size: 0.875rem;">予約枠の取得中にエラーが発生しました。</p>
-      </div>
-    `, 500)
+    /**
+     * エラーハンドリング
+     * DB接続失敗時にページ全体がクラッシュ（ホワイトアウト）するのを防ぐガードです。
+     */
+    console.error('[DB Error] Failed to fetch from shizentaiga_db:', error);
+    
+    if (error instanceof Error) {
+      console.error(`[Detail] ${error.message}`);
+    }
+
+    return [];
   }
 }

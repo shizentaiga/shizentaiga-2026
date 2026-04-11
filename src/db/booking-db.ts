@@ -14,21 +14,21 @@ import { Context } from 'hono'
 const MAX_FETCH_COUNT = 100;
 
 /**
- * 予約枠のデータ型定義（Schema v1.7 準拠）
+ * 予約枠のデータ型定義（Schema v2.7 準拠）
  * データベースのテーブルカラムと完全に一致させています。
  */
 export interface BookingSlot {
-  tenant_id: string;
-  id: string;
-  service_id: string;
+  slot_id: string;             // id -> slot_id
+  plan_id: string;             // service_id -> plan_id
   staff_id: string;
-  date_string: string;   // JST固定: 'YYYY-MM-DD'
-  start_at_unix: number; // 10桁 Unix Timestamp (秒単位)
-  slot_duration: number; // 分単位
-  status: 'available' | 'pending' | 'booked' | 'error';
+  date_string: string;         // JST固定: 'YYYY-MM-DD'
+  start_at_unix: number;       // 10桁 Unix Timestamp (秒単位)
+  end_at_unix: number;         // 終了時刻 (v2.7で追加)
+  booking_status: 'available' | 'pending' | 'booked' | 'error'; // status -> booking_status
+  actual_price_amount: number; // 予約時価格
+  actual_duration_min: number; // 予約時所要時間
+  stripe_session_id?: string;
   expires_at?: number;
-  retry_count: number;
-  last_retry_at?: number;
   created_at: number;
   updated_at: number;
 }
@@ -61,15 +61,16 @@ export const getAvailableSlotsFromDB = async (c: Context): Promise<BookingSlot[]
      * クエリ実行：未来の予約可能なスロットのみを抽出
      * 1. 過去のデータを除外するため `start_at_unix > ?` を追加。
      * 2. PSI（表示速度）維持のため、SELECT * を避け必要なカラムを明示。
-     * 3. インデックス idx_slots_search_optimized を活用。
+     * 3. v2.7 のカラム名 (booking_status等) を使用。
      */
     const response = await shizentaiga_db.prepare(
       `SELECT 
-        tenant_id, id, service_id, staff_id, date_string, 
-        start_at_unix, slot_duration, status, 
-        expires_at, retry_count, last_retry_at, created_at, updated_at
+        slot_id, plan_id, staff_id, date_string, 
+        start_at_unix, end_at_unix, booking_status, 
+        actual_price_amount, actual_duration_min,
+        stripe_session_id, expires_at, created_at, updated_at
        FROM slots 
-       WHERE status = 'available' 
+       WHERE booking_status = 'available' 
          AND start_at_unix > ?
        ORDER BY start_at_unix ASC
        LIMIT ?`

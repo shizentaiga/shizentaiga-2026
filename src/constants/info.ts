@@ -6,12 +6,11 @@
  */
 
 export const BUSINESS_INFO = {
-    // 予約可能枠（手動更新セクション）
-  // ⭐️Googleカレンダー連携までの暫定運用。ここを書き換えてデプロイしてください。
-  availableSlots: [
-    { date: "2026-04-08", time: "10:00 - 13:00", status: "available" },
-    { date: "2026-04-30", time: "10:00 - 13:00", status: "available" },
-  ],
+  // 予約可能枠（手動更新セクション）：DBから読み込む処理に変更(2026/04/11)
+  // availableSlots: [
+  //   { date: "2026-04-08", time: "10:00 - 13:00", status: "available" },
+  //   { date: "2026-04-30", time: "10:00 - 13:00", status: "available" },
+  // ],
 
   // 基本情報
   brandName: "清善 泰賀 | Taiga Shizen Official",
@@ -33,37 +32,38 @@ export const BUSINESS_INFO = {
   paymentTiming: "【カード】ご注文時（即時決済） / 【銀行振込】ご注文日から3日以内",
   deliveryTiming: "予約完了後、指定日時に提供。デジタルコンテンツは決済完了後、即時またはメール送付。",
 
-  // サービスプラン設定
+  // サービスプラン設定：DBから読み込む処理に変更(2026/04/11)
   // Services.tsx でループ処理するために配列形式で定義
-  services: [
-    {
-      id: "individualDiagnosis",
-      name: "経営コンサルティング",
-      duration: "90分",
-      price: 49500,
-      description: "課題解決に向けた90分の戦略セッション",
-      taxIncluded: true,
-      suffix: "" // ← これを追加
-    },
-    {
-      id: "fundingPhase0",
-      name: "資金調達プラン 初回相談",
-      duration: "60分",
-      price: 11000,
-      description: "融資・資金繰りに関する専門的なアドバイス",
-      taxIncluded: true,
-      suffix: "" // ← これを追加
-    },
-    {
-      id: "advisory",
-      name: "顧問契約プラン",
-      duration: "1ヶ月〜",
-      price: 220000,
-      description: "継続的な伴走支援により、組織の構造的課題を解決",
-      taxIncluded: true,
-      suffix: ""
-    }
-  ],
+  // v2.7 DBカラム名およびシードデータIDと完全一致させています
+  // services: [
+  //   {
+  //     plan_id: "pln_consulting",
+  //     plan_name: "経営コンサルティング",
+  //     duration_min: 90,
+  //     price_amount: 49500,
+  //     description: "課題解決に向けた90分の戦略セッション",
+  //     taxIncluded: true,
+  //     suffix: "分"
+  //   },
+  //   {
+  //     plan_id: "pln_funding",
+  //     plan_name: "資金調達プラン 初回相談",
+  //     duration_min: 60,
+  //     price_amount: 11000,
+  //     description: "融資・資金繰りに関する専門的なアドバイス",
+  //     taxIncluded: true,
+  //     suffix: "分"
+  //   },
+  //   {
+  //     plan_id: "pln_advisor",
+  //     plan_name: "顧問契約プラン",
+  //     duration_min: 0, // 期間が可変のためフラグ値として0を設定
+  //     price_amount: 220000,
+  //     description: "継続的な伴走支援により、組織の構造的課題を解決",
+  //     taxIncluded: true,
+  //     suffix: "1ヶ月〜"
+  //   }
+  // ],
 
   // 法務・ポリシー関連の定型文
   policies: {

@@ -2,26 +2,18 @@
  * @file Services.tsx
  * @description 
  * 予約ページの「全体レイアウト」を統括する親コンポーネント。
- * 
- * * ■ 役割と設計思想:
+ * * * ■ 役割と設計思想:
  * 1. サーバーサイド・データ統合: 
- * HonoのSSR（Server Side Rendering）を活用し、DB（Cloudflare D1）から最新の予約空き状況を
- * サーバー内部で直接取得。クライアントサイドでの余分なAPI通信（Round Trip）を最小化する。
- * 2. ページ構造の定義: 
- * ヘッダー、プラン選択、カレンダー、フッターといった再利用可能なUI部品を統合し、
- * ユーザーの意思決定フロー（01.プラン選択 → 02.日程選択）を視覚化する。
- * 3. 疎結合な画面更新（HTMX）: 
- * ページ全体をリロードすることなく、日付選択に伴う「時間枠の一覧」のみを動的に
- * 書き換えるためのインフラ（hx-target等）を構築する。
- * 
- * * ■ 運用上の検討課題とリスク（スタートアップフェーズ後の技術負債の整理対象）:
- * 1. 外部CDN依存リスク (Availability Risk)は許容する。
- * 2. Tailwind Play CDN のパフォーマンスも、当面は許容する。
+ * HonoのSSRを活用し、プラン情報(plans)および予約空き状況(slots)をDBから直接取得。
+ * 2. 厳格なDB依存 (Single Source of Truth):
+ * 他店舗展開を見据え、ソースコードへのプラン情報のハードコーディングを廃止。
+ * DBに登録されたデータのみを表示することで、店舗間のデータ混線を物理的に防止する。
  */
 
 import { html, raw } from 'hono/html'
 
 /* --- DATA & CONSTANTS --- */
+// services の参照を廃止したため、BUSINESS_INFO は必要に応じて他の用途で使用します
 import { BUSINESS_INFO } from '../constants/info'
 
 /* --- LOGIC --- */
@@ -35,6 +27,7 @@ import { BookingFooter } from '../components/BookingFooter'
 
 /* --- DB ACCESS --- */
 import { getAvailableSlotsFromDB } from '../db/booking-db'
+import { getPlansFromDB } from '../db/plan-db'
 
 export const Services = async (c: any) => {
   /* -------------------------------------------------------------------------- */
@@ -42,19 +35,27 @@ export const Services = async (c: any) => {
   /* -------------------------------------------------------------------------- */
   const currentDate = new Date();
   
-  // カレンダーの「日付の器」を生成（lib/calendar-logic.ts を参照）
+  // カレンダーの表示基盤を生成
   const calendarDays = generateCalendarData(currentDate);
   
-  // DBから予約枠データを直接取得（API経由ではなく、Worker内部で完結）
+  /**
+   * プラン情報の取得
+   * 【DB完全依存モード】
+   * info.ts の静的データは使用せず、DBの結果をそのまま View へ渡します。
+   * データが0件の場合のハンドリングは ServicePlanList コンポーネント側で行います。
+   */
+  const displayPlans = await getPlansFromDB(c);
+
+  // DBから予約枠データを取得
   const rawSlots = await getAvailableSlotsFromDB(c);
 
-  // フロントエンドで扱いやすいように、DBのカラム名を一部調整
+  // フロントエンド用データ調整
   const availableSlots = rawSlots.map(slot => ({ 
     ...slot, 
     date: slot.date_string 
   }));
 
-  // 初期表示（ファーストビュー）で選択状態にする日付の特定
+  // 初期表示の日付特定
   const firstAvailableDate = availableSlots[0]?.date || "";
   const baseYear = currentDate.getFullYear();
   const baseMonth = currentDate.getMonth() + 1;
@@ -77,7 +78,9 @@ export const Services = async (c: any) => {
       <div class="max-w-3xl mx-auto p-6">
         <section class="mb-12">
           <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">01. Select Plan</h2>
-          ${ServicePlanList(BUSINESS_INFO.services)}
+          
+          ${ServicePlanList(displayPlans)}
+          
         </section>
 
         <div id="calendar-container" class="mb-12">
@@ -111,7 +114,6 @@ export const Services = async (c: any) => {
       <script>
         /**
          * HTMX ネットワークエラーハンドリング
-         * サーバーダウンやタイムアウト時、ユーザーを放置せずエラーを表示する。
          */
         document.body.addEventListener('htmx:responseError', function(evt) {
           const errorDiv = document.getElementById('error-display');
