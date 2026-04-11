@@ -57,6 +57,7 @@ CREATE TABLE plans (
     plan_id      TEXT PRIMARY KEY,
     shop_id      TEXT NOT NULL,
     name         TEXT NOT NULL,
+    description  TEXT,              -- ★追加：プランの補足説明文
     duration_min INTEGER NOT NULL,
     price_amount INTEGER NOT NULL,
     -- draft:編集、active:公開、hidden:URL限定、inactive:停止、archived:廃止
