@@ -1,5 +1,5 @@
 -- =========================================================================
--- seed.sql (Service Page Initial Data)
+-- seed_01_master.sql (Service Page Initial Data) v2.7対応版
 -- [規約]
 -- 1. 時刻指定: unixepoch('YYYY-MM-DD HH:MM:SS') を使用。
 --    SQLiteはこれをUTCとして扱うため、JSTから9時間引いた時刻を記述し、
@@ -10,8 +10,6 @@
 -- SQL実行: npx wrangler d1 execute shizentaiga_db --local --file=./src/db/seed_01_master.sql
 -- 一覧確認: .tables / 構造確認: .schema <table_name>
 -- =========================================================================
-
-
 
 -- =========================================================================
 -- [データ整合性の強制]
@@ -24,7 +22,7 @@ PRAGMA foreign_keys = ON;
 -- -------------------------------------------------------------------------
 -- 1. 店舗（shops）
 -- -------------------------------------------------------------------------
-INSERT INTO shops (shop_id, name, created_at, updated_at)
+INSERT INTO shops (shop_id, shop_name, created_at, updated_at)
 VALUES (
     'shp_zenyu', 
     '善幽', 
@@ -35,11 +33,11 @@ VALUES (
 -- -------------------------------------------------------------------------
 -- 2. スタッフ（staffs）
 -- -------------------------------------------------------------------------
-INSERT INTO staffs (staff_id, shop_id, real_name, display_name, created_at, updated_at)
+INSERT INTO staffs (staff_id, shop_id, real_name, staff_display_name, created_at, updated_at)
 VALUES (
     'stf_shizentaiga', 
     'shp_zenyu', 
-    'SECRET',          -- 本名は非公開
+    'SECRET',           -- 本名は非公開
     '清善 泰賀', 
     unixepoch('2026-04-11 03:00:00'), -- JST 12:00
     unixepoch('2026-04-11 03:00:00')
@@ -49,7 +47,15 @@ VALUES (
 -- 3. プラン（plans）
 -- -------------------------------------------------------------------------
 INSERT INTO plans (
-    plan_id, shop_id, name, description, duration_min, price_amount, status, created_at, updated_at
+    plan_id, 
+    shop_id, 
+    plan_name, 
+    description, 
+    duration_min, 
+    price_amount, 
+    plan_status, 
+    created_at, 
+    updated_at
 ) VALUES 
 -- 経営コンサルティング
 (
@@ -80,7 +86,7 @@ INSERT INTO plans (
     'pln_advisor', 
     'shp_zenyu', 
     '顧問契約プラン', 
-    '継続的な伴伴支援により、組織の構造的課題を解決', 
+    '継続的な伴走支援により、組織の構造的課題を解決', 
     0, -- 期間が可変（1ヶ月〜）のためフラグ値として0を設定
     220000, 
     'active', 

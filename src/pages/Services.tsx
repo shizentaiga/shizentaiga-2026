@@ -2,6 +2,7 @@
  * @file Services.tsx
  * @description 
  * 予約ページの「全体レイアウト」を統括する親コンポーネント。
+ * 
  * * ■ 役割と設計思想:
  * 1. サーバーサイド・データ統合: 
  * HonoのSSR（Server Side Rendering）を活用し、DB（Cloudflare D1）から最新の予約空き状況を
@@ -12,14 +13,10 @@
  * 3. 疎結合な画面更新（HTMX）: 
  * ページ全体をリロードすることなく、日付選択に伴う「時間枠の一覧」のみを動的に
  * 書き換えるためのインフラ（hx-target等）を構築する。
+ * 
  * * ■ 運用上の検討課題とリスク（スタートアップフェーズ後の技術負債の整理対象）:
- * 1. 外部CDN依存リスク (Availability Risk):
- * - unpkg.com (HTMX) および cdn.tailwindcss.com が停止・遅延した場合、システムの
- * 主要機能および外観が完全に損なわれる。
- * - 対策案：将来的にnpmパッケージとしてローカルにバンドルし、自社サーバーから配信する。
- * 2. Tailwind Play CDN のパフォーマンス:
- * - 現在は開発効率優先で Play CDN を使用しているが、これは実行時にCSSを生成するため、
- * 本番環境ではビルド済みのCSSを読み込む構成（PSI対策）への移行が推奨される。
+ * 1. 外部CDN依存リスク (Availability Risk)は許容する。
+ * 2. Tailwind Play CDN のパフォーマンスも、当面は許容する。
  */
 
 import { html, raw } from 'hono/html'

@@ -1,14 +1,15 @@
 import { Hono } from 'hono';
 
 /**
- * [TEST 10] DB Plan Fetcher (v2.6 Schema 対応版)
+ * [TEST 10] DB Plan Fetcher (v2.7 Schema 対応版)
  * * ■ 目的
  * Cloudflare D1 (shizentaiga_db) との疎通確認、および plans テーブルからの
  * データ取得・表示を検証する。
  * * ■ 後任者への注記
  * 1. バインディング名: wrangler.toml/json の `binding` 設定と `Bindings` 型定義が一致している必要がある。
  * 2. 外部キー制約: D1 はデフォルトで OFF のため、セッション開始時に PRAGMA 設定を行う規約としている。
- * 3. 時間表記: duration_min が 0 の場合は「要問合せ」等のビジネスロジック判定を UI 層で行う例を示す。
+ * 3. 命名規則: v2.7より JOIN 時の衝突を避けるため `plan_name`, `plan_status` 等のプレフィックス付きカラム名を採用。
+ * 4. ビジネスロジック: duration_min が 0 の場合は「要問合せ」等の判定を UI 層で行う。
  */
 
 /**
@@ -39,18 +40,18 @@ test10.get('/', async (c) => {
     await c.env.shizentaiga_db.prepare('PRAGMA foreign_keys = ON;').run();
 
     // 3. プラン一覧の取得
-    // v2.6 スキーマで追加された 'description' カラムを含め、
-    // active（公開中）なプランのみを新着順で抽出する。
+    // v2.7 スキーマに基づき、プレフィックス付きのカラム名で取得。
+    // plan_status が 'active'（公開中）なプランのみを新着順で抽出。
     const { results } = await c.env.shizentaiga_db.prepare(`
       SELECT 
         plan_id, 
-        name, 
+        plan_name, 
         description,
         duration_min, 
         price_amount, 
-        status 
+        plan_status 
       FROM plans 
-      WHERE status = 'active'
+      WHERE plan_status = 'active'
       ORDER BY created_at DESC
     `).all();
 
@@ -59,7 +60,7 @@ test10.get('/', async (c) => {
     if (!results || results.length === 0) {
       return c.html(`
         <div style="font-family: sans-serif; padding: 20px;">
-          <h3>[TEST 10] DB Plan Checker</h3>
+          <h3>[TEST 10] DB Plan Checker (v2.7)</h3>
           <p style="color: #d97706; background: #fffbeb; border: 1px solid #fcd34d; padding: 15px; border-radius: 4px;">
             ⚠ <strong>Database Connected:</strong> 接続は正常ですが、表示可能なデータが0件です。<br>
             <code>npx wrangler d1 execute shizentaiga_db --local --file=./src/db/seed_01_master.sql</code> を実行してください。
@@ -70,14 +71,14 @@ test10.get('/', async (c) => {
     }
 
     // 5. ビュー（HTML）の構築
-    // テンプレートエンジン未導入のため、可読性の高いテンプレートリテラルで構築。
+    // plan.plan_name などの新カラム名を参照してレンダリング。
     const rows = results.map(plan => `
       <tr>
         <td style="border: 1px solid #ccc; padding: 8px; font-family: monospace; font-size: 0.85rem; color: #666;">
           ${plan.plan_id}
         </td>
         <td style="border: 1px solid #ccc; padding: 8px;">
-          <strong style="font-size: 1.05rem;">${plan.name}</strong><br>
+          <strong style="font-size: 1.05rem;">${plan.plan_name}</strong><br>
           <div style="color: #666; font-size: 0.9rem; margin-top: 4px;">
             ${plan.description || '<span style="color: #ccc;">(説明文未設定)</span>'}
           </div>
@@ -100,9 +101,9 @@ test10.get('/', async (c) => {
           tr:hover { background-color: #f1f3f5; }
         </style>
         
-        <h3>[TEST 10] DB Plan Checker</h3>
+        <h3>[TEST 10] DB Plan Checker (v2.7)</h3>
         <p style="color: #059669; background: #ecfdf5; border: 1px solid #6ee7b7; padding: 10px; border-radius: 4px;">
-          ✅ <strong>shizentaiga_db</strong> との通信、およびデータ取得に成功しました。
+          ✅ <strong>shizentaiga_db</strong> との通信、および v2.7 スキーマでのデータ取得に成功しました。
         </p>
         
         <table>
@@ -140,7 +141,7 @@ test10.get('/', async (c) => {
           <ul style="font-size: 0.9rem;">
             <li><code>wrangler.json</code> の <code>binding</code> が "shizentaiga_db" になっているか？</li>
             <li>ローカル開発の場合、<code>--local</code> フラグを付けて実行しているか？</li>
-            <li>スキーマ v2.6 の変更 (descriptionカラム追加) は適用済みか？</li>
+            <li><strong>スキーマ v2.7</strong> の変更 (plan_name, plan_status等への改名) は適用済みか？</li>
           </ul>
         </div>
         <p><a href="/_debug/">← サンドボックスTOPに戻る</a></p>
