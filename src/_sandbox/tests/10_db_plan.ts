@@ -60,10 +60,10 @@ test10.get('/', async (c) => {
     if (!results || results.length === 0) {
       return c.html(`
         <div style="font-family: sans-serif; padding: 20px;">
-          <h3>[TEST 10] DB Plan Checker (v2.7)</h3>
+          <h3>[TEST 10] DBプランのチェック</h3>
           <p style="color: #d97706; background: #fffbeb; border: 1px solid #fcd34d; padding: 15px; border-radius: 4px;">
             ⚠ <strong>Database Connected:</strong> 接続は正常ですが、表示可能なデータが0件です。<br>
-            <code>npx wrangler d1 execute shizentaiga_db --local --file=./src/db/seed_01_master.sql</code> を実行してください。
+            <code>事前にプランを登録する必要があります。(商用リリース時はエラーメッセージ自体も別途管理する予定です。)
           </p>
           <p><a href="/_debug/">← サンドボックスTOPに戻る</a></p>
         </div>
