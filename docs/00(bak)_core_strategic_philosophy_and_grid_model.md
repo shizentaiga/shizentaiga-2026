@@ -1,3 +1,4 @@
+⭐️以下は変更前。
 # 予約システム 戦略的要件定義書 v3.9
 **The Business Infrastructure Candidate**
 
