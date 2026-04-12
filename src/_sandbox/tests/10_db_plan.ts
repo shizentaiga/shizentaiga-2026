@@ -1,21 +1,17 @@
 import { Hono } from 'hono';
 
 /**
- * [TEST 10] DB Plan Fetcher (v2.7 Schema 対応版)
+ * [TEST 10] DB Plan Fetcher (v3.0 Grid-Atomic 対応版)
  * * ■ 目的
- * Cloudflare D1 (shizentaiga_db) との疎通確認、および plans テーブルからの
- * データ取得・表示を検証する。
+ * Cloudflare D1 (shizentaiga_db) からのマスターデータ取得を検証する。
+ * v3.0 で追加された buffer_min (片付け時間) を含む整合性を確認。
  * * ■ 後任者への注記
- * 1. バインディング名: wrangler.toml/json の `binding` 設定と `Bindings` 型定義が一致している必要がある。
- * 2. 外部キー制約: D1 はデフォルトで OFF のため、セッション開始時に PRAGMA 設定を行う規約としている。
- * 3. 命名規則: v2.7より JOIN 時の衝突を避けるため `plan_name`, `plan_status` 等のプレフィックス付きカラム名を採用。
- * 4. ビジネスロジック: duration_min が 0 の場合は「要問合せ」等の判定を UI 層で行う。
+ * 1. バインディング名: 常に 'shizentaiga_db' を固定。
+ * 2. 外部キー制約: PRAGMA foreign_keys = ON; を推奨。
+ * 3. 命名規則: v3.0 では shop_id による店舗分離が導入。
+ * 4. ビジネスロジック: 総拘束時間は duration_min + buffer_min で算出する。
  */
 
-/**
- * 環境変数の型定義
- * wrangler.json の [d1_databases] セクションで指定した binding 名と一致させること。
- */
 type Bindings = {
   shizentaiga_db: D1Database;
 };
@@ -25,45 +21,41 @@ export const test10 = new Hono<{ Bindings: Bindings }>();
 test10.get('/', async (c) => {
   try {
     // 1. バインディングの存在チェック
-    // 構成ミス（wrangler設定とコードの不一致）を即座に検知するためのガード
     if (!c.env.shizentaiga_db) {
       throw new Error(
-        "c.env.shizentaiga_db が取得できません。原因として以下が考えられます：\n" +
-        "1. wrangler.json の binding 名が 'shizentaiga_db' ではない\n" +
-        "2. ローカル実行時に D1 が正しく初期化されていない"
+        "c.env.shizentaiga_db が取得できません。\n" +
+        "wrangler.json の binding 名が 'shizentaiga_db' であるか確認してください。"
       );
     }
 
     // 2. 外部キー制約の有効化
-    // 参照整合性を維持するためのシステム規約。
-    // SQLite の仕様により「接続（リクエスト）ごと」に実行が必要。
     await c.env.shizentaiga_db.prepare('PRAGMA foreign_keys = ON;').run();
 
-    // 3. プラン一覧の取得
-    // v2.7 スキーマに基づき、プレフィックス付きのカラム名で取得。
-    // plan_status が 'active'（公開中）なプランのみを新着順で抽出。
+    // 3. プラン一覧の取得 (v3.0 Schema)
+    // buffer_min を追加取得し、予約画面に表示可能なステータス ('active', 'hidden') を対象にします。
     const { results } = await c.env.shizentaiga_db.prepare(`
       SELECT 
         plan_id, 
+        shop_id,
         plan_name, 
         description,
         duration_min, 
+        buffer_min,
         price_amount, 
         plan_status 
       FROM plans 
-      WHERE plan_status = 'active'
+      WHERE plan_status IN ('active', 'hidden')
       ORDER BY created_at DESC
     `).all();
 
     // 4. データ不在時のハンドリング
-    // 接続成功とデータ存在を区別して報告することで、原因の切り分け（接続不良か、seed漏れか）を容易にする。
     if (!results || results.length === 0) {
       return c.html(`
         <div style="font-family: sans-serif; padding: 20px;">
           <h3>[TEST 10] DBプランのチェック</h3>
           <p style="color: #d97706; background: #fffbeb; border: 1px solid #fcd34d; padding: 15px; border-radius: 4px;">
-            ⚠ <strong>Database Connected:</strong> 接続は正常ですが、表示可能なデータが0件です。<br>
-            <code>事前にプランを登録する必要があります。(商用リリース時はエラーメッセージ自体も別途管理する予定です。)
+            ⚠ <strong>Database Connected:</strong> 接続成功。ただし active なデータが0件です。<br>
+            <code>seed.sql</code> または管理画面からプランを登録してください。
           </p>
           <p><a href="/_debug/">← サンドボックスTOPに戻る</a></p>
         </div>
@@ -71,48 +63,55 @@ test10.get('/', async (c) => {
     }
 
     // 5. ビュー（HTML）の構築
-    // plan.plan_name などの新カラム名を参照してレンダリング。
-    const rows = results.map(plan => `
+    const rows = results.map(plan => {
+      const totalTime = Number(plan.duration_min) + Number(plan.buffer_min);
+      const isHidden = plan.plan_status === 'hidden';
+      
+      return `
       <tr>
-        <td style="border: 1px solid #ccc; padding: 8px; font-family: monospace; font-size: 0.85rem; color: #666;">
-          ${plan.plan_id}
+        <td style="border: 1px solid #dee2e6; padding: 12px; font-family: monospace; font-size: 0.8rem; color: #64748b;">
+          ${plan.plan_id}<br>
+          <span style="font-size: 0.7rem; color: #94a3b8;">Shop: ${plan.shop_id}</span>
         </td>
-        <td style="border: 1px solid #ccc; padding: 8px;">
-          <strong style="font-size: 1.05rem;">${plan.plan_name}</strong><br>
-          <div style="color: #666; font-size: 0.9rem; margin-top: 4px;">
-            ${plan.description || '<span style="color: #ccc;">(説明文未設定)</span>'}
+        <td style="border: 1px solid #dee2e6; padding: 12px;">
+          <strong style="font-size: 1rem; color: #1e293b;">${plan.plan_name}</strong>
+          ${isHidden ? '<span style="font-size: 0.7rem; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; margin-left: 5px;">限定公開</span>' : ''}
+          <div style="color: #64748b; font-size: 0.85rem; margin-top: 6px;">
+            ${plan.description || '<span style="color: #cbd5e1;">(説明文なし)</span>'}
           </div>
         </td>
-        <td style="border: 1px solid #ccc; padding: 8px; text-align: center;">
-          ${plan.duration_min === 0 ? '<strong>要問合せ</strong>' : `${plan.duration_min} 分`}
+        <td style="border: 1px solid #dee2e6; padding: 12px; text-align: center; font-size: 0.9rem;">
+          <div style="font-weight: bold;">${plan.duration_min}分</div>
+          <div style="font-size: 0.75rem; color: #94a3b8;">(+清掃${plan.buffer_min}分)</div>
+          <div style="font-size: 0.7rem; color: #3b82f6; margin-top: 4px;">計 ${totalTime}分</div>
         </td>
-        <td style="border: 1px solid #ccc; padding: 8px; text-align: right; font-weight: bold;">
+        <td style="border: 1px solid #dee2e6; padding: 12px; text-align: right; font-weight: 800; color: #0f172a;">
           ¥${Number(plan.price_amount).toLocaleString()}
         </td>
       </tr>
-    `).join('');
+      `;
+    }).join('');
 
     return c.html(`
-      <div style="font-family: sans-serif; max-width: 900px; margin: 0 auto; padding: 20px;">
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1000px; margin: 40px auto; padding: 0 20px;">
         <style>
-          table { border-collapse: collapse; width: 100%; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-          th { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px; text-align: left; }
-          td { border: 1px solid #dee2e6; padding: 12px; vertical-align: top; }
-          tr:hover { background-color: #f1f3f5; }
+          table { border-collapse: collapse; width: 100%; margin-top: 20px; background: #fff; border-radius: 8px; overflow: hidden; }
+          th { background: #f8fafc; border: 1px solid #dee2e6; padding: 14px; text-align: left; font-size: 0.85rem; color: #64748b; text-transform: uppercase; }
+          tr:hover { background-color: #f8fafc; }
         </style>
         
-        <h3>[TEST 10] DB Plan Checker (v2.7)</h3>
-        <p style="color: #059669; background: #ecfdf5; border: 1px solid #6ee7b7; padding: 10px; border-radius: 4px;">
-          ✅ <strong>shizentaiga_db</strong> との通信、および v2.7 スキーマでのデータ取得に成功しました。
+        <h3 style="margin-bottom: 5px;">[TEST 10] DB Plan Checker (v3.0)</h3>
+        <p style="color: #059669; background: #ecfdf5; border: 1px solid #10b981; padding: 12px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 25px;">
+          ✅ <strong>v3.0 Grid-Atomic</strong> スキーマでのプラン取得に成功しました。
         </p>
         
         <table>
           <thead>
             <tr>
-              <th style="width: 20%;">ID (prefix_ULID)</th>
-              <th style="width: 45%;">プラン詳細</th>
-              <th style="width: 15%;">所要時間</th>
-              <th style="width: 20%;">価格 (税込)</th>
+              <th style="width: 18%;">ID / Shop</th>
+              <th style="width: 42%;">プラン内容</th>
+              <th style="width: 20%; text-align: center;">専有時間 (Grid)</th>
+              <th style="width: 20%; text-align: right;">価格 (税込)</th>
             </tr>
           </thead>
           <tbody>
@@ -120,31 +119,29 @@ test10.get('/', async (c) => {
           </tbody>
         </table>
         
-        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px;">
-          <p><a href="/_debug/" style="color: #2563eb; text-decoration: none;">← サンドボックスTOPに戻る</a></p>
+        <div style="margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+          <a href="/_debug/" style="color: #3b82f6; text-decoration: none; font-weight: bold; font-size: 0.9rem;">← サンドボックスTOPに戻る</a>
         </div>
       </div>
     `);
 
   } catch (e: any) {
-    // 6. 異常系の可視化
-    // 開発中のデバッグ工数を削減するため、エラーメッセージを直接画面にレンダリングする。
-    console.error("DB Fetch Error:", e);
+    console.error("v3.0 Fetch Error:", e);
     return c.html(`
       <div style="font-family: sans-serif; padding: 20px;">
-        <h3 style="color: #dc2626;">[TEST 10] SYSTEM ERROR</h3>
-        <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 20px; border-radius: 4px; color: #991b1b;">
-          <p><strong>エラーの概要:</strong></p>
-          <pre style="white-space: pre-wrap; background: #fff; padding: 10px; border: 1px solid #fca5a5;">${e.message}</pre>
-          <hr style="border: 0; border-top: 1px solid #fca5a5; margin: 15px 0;">
-          <p><strong>デバッグのチェックリスト:</strong></p>
-          <ul style="font-size: 0.9rem;">
-            <li><code>wrangler.json</code> の <code>binding</code> が "shizentaiga_db" になっているか？</li>
-            <li>ローカル開発の場合、<code>--local</code> フラグを付けて実行しているか？</li>
-            <li><strong>スキーマ v2.7</strong> の変更 (plan_name, plan_status等への改名) は適用済みか？</li>
+        <h3 style="color: #ef4444;">[TEST 10] SYSTEM ERROR (v3.0)</h3>
+        <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 20px; border-radius: 8px; color: #991b1b;">
+          <p><strong>エラー原因の可能性:</strong></p>
+          <pre style="white-space: pre-wrap; background: #fff; padding: 10px; border: 1px solid #fecaca; font-size: 0.85rem;">${e.message}</pre>
+          <hr style="border: 0; border-top: 1px solid #fee2e2; margin: 15px 0;">
+          <p><strong>v3.0 移行チェックリスト:</strong></p>
+          <ul style="font-size: 0.85rem; line-height: 1.6;">
+            <li><code>plans</code> テーブルに <code>buffer_min</code> カラムは存在するか？</li>
+            <li><code>plan_status</code> が単なる <code>active/inactive</code> 以外の <code>hidden</code> 等に対応しているか？</li>
+            <li><code>shop_id</code> がカラムに含まれているか？</li>
           </ul>
         </div>
-        <p><a href="/_debug/">← サンドボックスTOPに戻る</a></p>
+        <p style="margin-top:20px;"><a href="/_debug/">← サンドボックスTOPに戻る</a></p>
       </div>
     `, 500);
   }

@@ -8,12 +8,13 @@ type Bindings = {
 };
 
 /**
- * D1から取得するデータの型定義
+ * v3.0 グリッド・アトミックモデル用の型定義
  */
 interface Plan {
   plan_id: string;
   plan_name: string;
   duration_min: number;
+  buffer_min: number; // v3.0 で追加
   price_amount: number;
   plan_status: string;
 }
@@ -22,7 +23,7 @@ interface StaffSchedule {
   schedule_id: string;
   date_string: string;
   start_at_unix: number;
-  end_at_unix: number;
+  // v3.0 では30分固定のため end_at_unix は計算で算出可能だが、デバッグ用に保持
 }
 
 interface Slot {
@@ -30,188 +31,177 @@ interface Slot {
   booking_status: string;
   date_string: string;
   start_at_unix: number;
-  end_at_unix: number; // 終了時間を追加
   actual_duration_min: number;
-  stripe_session_id: string | null; // Stripe IDを追加
+  stripe_session_id: string | null;
 }
 
 export const test11 = new Hono<{ Bindings: Bindings }>();
 
 test11.get('/', async (c) => {
   try {
-    // 基準となる現在時刻（Unix秒）
     const nowUnix = Math.floor(Date.now() / 1000);
 
-    // 1. バインディングの存在チェック
-    if (!c.env.shizentaiga_db) {
-      throw new Error("c.env.shizentaiga_db が取得できません。wrangler.json の binding 名を確認してください。");
-    }
-
-    // 2. 外部キー制約の有効化
+    // 1. バインディング & 整合性チェックの設定
+    if (!c.env.shizentaiga_db) throw new Error("D1 Binding 'shizentaiga_db' not found.");
     await c.env.shizentaiga_db.prepare('PRAGMA foreign_keys = ON;').run();
 
-    // 3. プラン一覧の取得 (plans)
+    // 2. プラン一覧の取得 (Master Data)
+    // buffer_min を含めて取得し、総拘束時間を把握できるようにします。
     const { results: plansRaw } = await c.env.shizentaiga_db.prepare(`
-      SELECT plan_id, plan_name, duration_min, price_amount, plan_status 
-      FROM plans WHERE plan_status = 'active' ORDER BY created_at DESC
+      SELECT plan_id, plan_name, duration_min, buffer_min, price_amount, plan_status 
+      FROM plans WHERE plan_status != 'archived' ORDER BY created_at DESC
     `).all();
     const plans = plansRaw as unknown as Plan[];
 
-    // 4. スタッフ稼働枠の取得 (staff_schedules)
+    // 3. スタッフ稼働チップの取得 (Supply Side)
+    // どこの予約にも紐づいていない「生のアトミック・チップ」を確認します。
     const { results: schedulesRaw } = await c.env.shizentaiga_db.prepare(`
-      SELECT schedule_id, date_string, start_at_unix, end_at_unix 
-      FROM staff_schedules WHERE start_at_unix > ? ORDER BY start_at_unix ASC LIMIT 100
+      SELECT s.schedule_id, s.date_string, s.start_at_unix 
+      FROM staff_schedules s
+      LEFT JOIN reservation_grid rg ON s.schedule_id = rg.schedule_id
+      WHERE s.start_at_unix > ? AND rg.slot_id IS NULL
+      ORDER BY s.start_at_unix ASC LIMIT 50
     `).bind(nowUnix).all();
     const schedules = schedulesRaw as unknown as StaffSchedule[];
 
-    // 5. 予約スロットの取得 (slots)
-    // 詳細情報を表示するため、end_at_unix と stripe_session_id を SELECT に追加
+    // 4. 生成済み予約スロットの取得 (Inventory Side)
+    // 実際に「枠」として成立しているデータを確認。
     const { results: slotsRaw } = await c.env.shizentaiga_db.prepare(`
-      SELECT slot_id, booking_status, date_string, start_at_unix, end_at_unix, actual_duration_min, stripe_session_id 
-      FROM slots WHERE start_at_unix > ? ORDER BY start_at_unix ASC LIMIT 100
+      SELECT slot_id, booking_status, date_string, start_at_unix, actual_duration_min, stripe_session_id 
+      FROM slots WHERE start_at_unix > ? ORDER BY start_at_unix ASC LIMIT 50
     `).bind(nowUnix).all();
     const slots = slotsRaw as unknown as Slot[];
 
     /* -------------------------------------------------------------------------- */
-    /* ビュー用：各行の生成ロジック
+    /* ビュー生成ロジック
     /* -------------------------------------------------------------------------- */
 
-    // プラン行
-    const planRows = plans.length > 0 ? plans.map(p => `
-      <tr>
-        <td style="border: 1px solid #dee2e6; padding: 8px; font-family: monospace; font-size: 0.8rem;">${p.plan_id}</td>
-        <td style="border: 1px solid #dee2e6; padding: 8px;"><strong>${p.plan_name}</strong></td>
-        <td style="border: 1px solid #dee2e6; padding: 8px; text-align: center;">${p.duration_min}分</td>
-        <td style="border: 1px solid #dee2e6; padding: 8px; text-align: right;">¥${Number(p.price_amount).toLocaleString()}</td>
-      </tr>
-    `).join('') : '<tr><td colspan="4" style="text-align:center; padding:20px; color:#999;">プランが登録されていません</td></tr>';
+    // 1. プラン表示（マスター確認）
+    const planRows = plans.map(p => {
+      const total = p.duration_min + p.buffer_min;
+      return `
+        <tr>
+          <td style="border: 1px solid #e5e7eb; padding: 10px; font-family: monospace; font-size: 0.75rem;">${p.plan_id}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;"><strong>${p.plan_name}</strong></td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">
+            ${p.duration_min}分 <span style="color:#94a3b8; font-size:0.8rem;">(+${p.buffer_min})</span>
+            <div style="font-size: 0.7rem; color: #6366f1;">Total: ${total}min</div>
+          </td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px; text-align: right; font-weight: bold;">¥${Number(p.price_amount).toLocaleString()}</td>
+        </tr>
+      `;
+    }).join('');
 
-    // 稼働枠行 (Supply)
-    const scheduleRows = schedules.length > 0 ? schedules.map(s => `
-      <tr style="font-size: 0.85rem;">
-        <td style="border: 1px solid #dee2e6; padding: 8px;">${s.date_string}</td>
-        <td style="border: 1px solid #dee2e6; padding: 8px;">${new Date(s.start_at_unix * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</td>
-        <td style="border: 1px solid #dee2e6; padding: 8px;">${new Date(s.end_at_unix * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</td>
-      </tr>
-    `).join('') : '<tr><td colspan="3" style="text-align:center; padding:10px; color:#999;">稼働予定データなし</td></tr>';
+    // 2. 空きチップ表示（供給確認）
+    const scheduleRows = schedules.map(s => {
+      const timeStr = new Date(s.start_at_unix * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      return `
+        <tr style="font-size: 0.8rem;">
+          <td style="border: 1px solid #e5e7eb; padding: 8px;">${s.date_string}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 8px; font-weight: 600; color: #059669;">${timeStr}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 8px; font-size: 0.65rem; color: #94a3b8;">30 min chip</td>
+        </tr>
+      `;
+    }).join('');
 
-    // 予約枠行 (Inventory/Demand)
-    // 詳細情報（時間範囲、Stripe ID）を含めるように拡張
-    const slotRows = slots.length > 0 ? slots.map(s => {
-      const statusColor = s.booking_status === 'booked' ? '#dc2626' : s.booking_status === 'pending' ? '#d97706' : '#059669';
+    // 3. 予約スロット表示（在庫・需要確認）
+    const slotRows = slots.map(s => {
+      const statusColors: any = { booked: '#10b981', pending: '#f59e0b', canceled: '#ef4444' };
       const startTime = new Date(s.start_at_unix * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-      const endTime = new Date(s.end_at_unix * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      const totalTime = s.actual_duration_min;
       
       return `
-        <tr style="font-size: 0.85rem;">
-          <td style="border: 1px solid #dee2e6; padding: 8px; font-family: monospace; font-size: 0.7rem;">${s.slot_id}</td>
-          <td style="border: 1px solid #dee2e6; padding: 8px;">
-            <div style="font-weight: bold;">${s.date_string}</div>
-            <div style="color: #4b5563;">${startTime} - ${endTime} (${s.actual_duration_min}分)</div>
+        <tr style="font-size: 0.8rem;">
+          <td style="border: 1px solid #e5e7eb; padding: 10px; font-family: monospace; font-size: 0.7rem;">${s.slot_id}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">
+            <div style="font-weight: 600;">${s.date_string} ${startTime}〜</div>
+            <div style="font-size: 0.7rem; color: #64748b;">占有: ${totalTime}分 (${totalTime / 30} chips)</div>
           </td>
-          <td style="border: 1px solid #dee2e6; padding: 8px; text-align: center;">
-            <span style="color: white; background: ${statusColor}; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold;">${s.booking_status.toUpperCase()}</span>
+          <td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">
+            <span style="color: white; background: ${statusColors[s.booking_status] || '#64748b'}; padding: 2px 8px; border-radius: 99px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase;">
+              ${s.booking_status}
+            </span>
           </td>
-          <td style="border: 1px solid #dee2e6; padding: 8px; font-family: monospace; font-size: 0.65rem; color: #6b7280; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${s.stripe_session_id ?? 'N/A'}">
+          <td style="border: 1px solid #e5e7eb; padding: 10px; font-family: monospace; font-size: 0.65rem; color: #94a3b8; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             ${s.stripe_session_id ?? '-'}
           </td>
         </tr>
       `;
-    }).join('') : '<tr><td colspan="4" style="text-align:center; padding:20px; color:#999;">有効な予約スロットなし</td></tr>';
+    }).join('');
 
-    /* -------------------------------------------------------------------------- */
-    /* 最終出力：HTML
-    /* -------------------------------------------------------------------------- */
     return c.html(`
       <!DOCTYPE html>
       <html lang="ja">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>[TEST 11] DB Data Observer</title>
+        <title>[TEST 11] v3.0 Grid Observer</title>
+        <script src="https://cdn.tailwindcss.com"></script>
       </head>
-      <body style="margin: 0; background-color: #f3f4f6; font-family: system-ui, -apple-system, sans-serif; padding: 20px; color: #1f2937;">
-        <div style="max-width: 1100px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+      <body class="bg-slate-100 font-sans p-6 text-slate-900">
+        <div class="max-w-6xl mx-auto space-y-8">
           
-          <header style="border-bottom: 2px solid #f3f4f6; margin-bottom: 30px; padding-bottom: 10px;">
-            <h2 style="margin:0; font-size: 1.4rem; color: #111827;">[TEST 11] System Data Observer</h2>
-            <p style="font-size: 0.85rem; color: #6b7280; margin: 8px 0 0;">
-              基準時刻 (現在): ${new Date(nowUnix * 1000).toLocaleString('ja-JP')} | Unix: ${nowUnix}
-            </p>
+          <header class="bg-white p-6 rounded-2xl shadow-sm flex justify-between items-end">
+            <div>
+              <h1 class="text-xl font-black text-slate-800">[TEST 11] Data Observer <span class="text-blue-600">v3.0</span></h1>
+              <p class="text-xs text-slate-500 mt-1 font-mono">Current: ${new Date(nowUnix * 1000).toLocaleString('ja-JP')} (Unix: ${nowUnix})</p>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] font-bold bg-slate-800 text-white px-2 py-1 rounded">GRID-ATOMIC MODEL</span>
+            </div>
           </header>
 
-          <section style="margin-bottom: 40px;">
-            <h3 style="color: #374151; font-size: 1rem; border-left: 4px solid #2563eb; padding-left: 10px; margin-bottom: 15px;">1. Service Plans (Master)</h3>
-            <table style="width: 100%; border-collapse: collapse;">
+          <section class="bg-white p-6 rounded-2xl shadow-sm">
+            <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <div class="w-2 h-4 bg-indigo-500 rounded-full"></div> 1. Service Plans (Master)
+            </h2>
+            <table class="w-full border-collapse">
               <thead>
-                <tr style="background: #f8f9fa;">
-                  <th style="border: 1px solid #dee2e6; padding: 10px; text-align: left; font-size: 0.75rem; color: #6b7280;">ID</th>
-                  <th style="border: 1px solid #dee2e6; padding: 10px; text-align: left; font-size: 0.75rem; color: #6b7280;">Name</th>
-                  <th style="border: 1px solid #dee2e6; padding: 10px; text-align: center; font-size: 0.75rem; color: #6b7280;">Duration</th>
-                  <th style="border: 1px solid #dee2e6; padding: 10px; text-align: right; font-size: 0.75rem; color: #6b7280;">Price</th>
+                <tr class="text-left text-[10px] text-slate-400 uppercase border-b border-slate-100">
+                  <th class="p-3">Plan ID</th><th class="p-3">Name</th><th class="p-3 text-center">Duration (Buffer)</th><th class="p-3 text-right">Price</th>
                 </tr>
               </thead>
-              <tbody>
-                ${planRows}
-              </tbody>
+              <tbody>${planRows}</tbody>
             </table>
           </section>
 
-          <div style="display: grid; grid-template-columns: 350px 1fr; gap: 24px; margin-top: 30px;">
-            
-            <section>
-              <h3 style="color: #374151; font-size: 1rem; border-left: 4px solid #059669; padding-left: 10px; margin-bottom: 15px;">2. Staff Schedules (Supply)</h3>
-              <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                  <tr style="background: #f8f9fa;">
-                    <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 0.75rem; color: #6b7280;">Date</th>
-                    <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 0.75rem; color: #6b7280;">Start</th>
-                    <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 0.75rem; color: #6b7280;">End</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${scheduleRows}
-                </tbody>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <section class="bg-white p-6 rounded-2xl shadow-sm lg:col-span-1">
+              <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <div class="w-2 h-4 bg-emerald-500 rounded-full"></div> 2. Raw Supply Chips
+              </h2>
+              <table class="w-full border-collapse">
+                <tbody>${scheduleRows}</tbody>
               </table>
+              <p class="text-[10px] text-slate-400 mt-4 italic">* 表示されているのは「まだ予約に紐付いていない」30分単位のチップです</p>
             </section>
 
-            <section>
-              <h3 style="color: #374151; font-size: 1rem; border-left: 4px solid #d97706; padding-left: 10px; margin-bottom: 15px;">3. Generated Slots (Inventory)</h3>
-              <table style="width: 100%; border-collapse: collapse;">
+            <section class="bg-white p-6 rounded-2xl shadow-sm lg:col-span-2">
+              <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <div class="w-2 h-4 bg-amber-500 rounded-full"></div> 3. Active Reservation Slots
+              </h2>
+              <table class="w-full border-collapse">
                 <thead>
-                  <tr style="background: #f8f9fa;">
-                    <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 0.75rem; color: #6b7280;">Slot ID</th>
-                    <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 0.75rem; color: #6b7280;">Reservation Time (JST)</th>
-                    <th style="border: 1px solid #dee2e6; padding: 8px; text-align: center; font-size: 0.75rem; color: #6b7280;">Status</th>
-                    <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 0.75rem; color: #6b7280;">Stripe Session</th>
+                  <tr class="text-left text-[10px] text-slate-400 uppercase border-b border-slate-100">
+                    <th class="p-3 text-xs">ID</th><th class="p-3 text-xs">Time & Usage</th><th class="p-3 text-center text-xs">Status</th><th class="p-3 text-xs">Stripe ID</th>
                   </tr>
                 </thead>
-                <tbody>
-                  ${slotRows}
-                </tbody>
+                <tbody>${slotRows}</tbody>
               </table>
             </section>
           </div>
 
-          <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
-            <a href="/_debug/" style="color: #2563eb; text-decoration: none; font-size: 0.9rem; font-weight: 500;">← サンドボックスTOPに戻る</a>
-            <span style="font-size: 0.75rem; color: #9ca3af;">Schema Version: 2.7</span>
-          </div>
+          <footer class="flex justify-between items-center pt-8 border-t border-slate-200 text-slate-400">
+            <a href="/_debug/" class="text-sm font-bold text-blue-600 hover:underline">← サンドボックスTOPに戻る</a>
+            <p class="text-[10px] uppercase font-bold tracking-tighter">Architecture: Hono + Cloudflare D1 + Grid Atomic</p>
+          </footer>
+
         </div>
       </body>
       </html>
     `);
 
   } catch (e: any) {
-    console.error("DEBUG ERROR:", e);
-    return c.html(`
-      <div style="padding:40px; font-family: sans-serif; background: #fff1f2; min-height: 100vh;">
-        <div style="max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; border: 1px solid #fda4af;">
-          <h3 style="color: #e11d48; margin-top: 0;">Runtime Error</h3>
-          <pre style="background: #f8fafc; padding: 15px; border-radius: 4px; font-size: 0.85rem; border: 1px solid #e2e8f0; overflow-x: auto;">${e.message}</pre>
-          <a href="/_debug/" style="color: #2563eb; font-size: 0.9rem;">← 戻る</a>
-        </div>
-      </div>
-    `, 500);
+    return c.html(`<div class="p-10 text-red-600 font-mono">Critical Error: ${e.message}</div>`, 500);
   }
 });

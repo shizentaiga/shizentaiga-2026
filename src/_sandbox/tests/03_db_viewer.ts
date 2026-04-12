@@ -42,27 +42,46 @@ export const test03 = new Hono<{ Bindings: Bindings }>();
 
 test03.get('/', async (c) => {
   try {
-    // 【修正箇所】start_at を start_at_unix に変更
-    // また、end_at というカラムも存在しないため、今回は除外するか別のカラムにします
+    // 【修正点】
+    // 1. id -> slot_id
+    // 2. status -> booking_status (CHECK制約に合わせて変更)
+    // 3. start_at_unix でソート
     const { results } = await c.env.shizentaiga_db
-      .prepare("SELECT id, date_string, start_at_unix, status FROM slots ORDER BY start_at_unix ASC")
+      .prepare(
+        "SELECT slot_id, date_string, start_at_unix, booking_status FROM slots ORDER BY start_at_unix ASC"
+      )
       .all();
 
     if (!results || results.length === 0) {
-      return c.text("⚠️ データベースは空です。");
+      return c.text("⚠️ データベースは空です。（slotsテーブルにレコードがありません）");
     }
 
     const report = results.map((row: any) => {
-      const statusIcon = row.status === 'available' ? '✅ 空き' : '⏳ 確保中';
-      // start_at_unix は INTEGER なので、表示用に少し加工
-      return `[${row.id}] 日付:${row.date_string} | 開始UNIX:${row.start_at_unix} | ${statusIcon}`;
+      // booking_status に基づくアイコン判定
+      const statusIcon = row.booking_status === 'booked' ? '✅ 確定' : 
+                         row.booking_status === 'pending' ? '⏳ 仮確保' : '❌ その他';
+      
+      // UNIXタイムスタンプを日本時間(JST)の読みやすい形式に変換
+      // D1から取得する数値は秒単位(10桁)なので、Dateオブジェクトには1000倍してミリ秒で渡します
+      const jstTime = new Date(row.start_at_unix * 1000).toLocaleString('ja-JP', {
+        timeZone: 'Asia/Tokyo',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      return `[${row.slot_id}] 日付:${row.date_string} | 開始:${jstTime} (UNIX:${row.start_at_unix}) | ${statusIcon}`;
     }).join('\n');
 
     return c.text(
-      `--- Current Slot Status ---\n\n${report}\n\nTotal: ${results.length} slots found.`
+      `--- Current Slot Status (v3.0 Grid Model) ---\n\n${report}\n\nTotal: ${results.length} slots found.`
     );
 
   } catch (e: any) {
-    return c.json({ status: "❌ SQL Error", error: e.message }, 500);
+    // 開発時に役立つよう、エラーメッセージを詳細に返却
+    return c.json({ 
+      status: "❌ SQL Error", 
+      message: e.message,
+      hint: "スキーマv3.0のカラム名（slot_id, booking_status）と一致しているか確認してください。"
+    }, 500);
   }
 });

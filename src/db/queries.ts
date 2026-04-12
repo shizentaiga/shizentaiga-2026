@@ -2,20 +2,40 @@ import { D1Database } from '@cloudflare/workers-types';
 
 /**
  * ====================================================================
- * Shizentaiga Domain Models: Slot Interface
+ * Shizentaiga Domain Models: v3.0 Grid-Atomic Model
  * ====================================================================
  */
+
+/**
+ * 予約スロット（需要・証跡）
+ */
 export interface Slot {
-  tenant_id:     string;                     // 事業者識別子
-  id:            string;                     // 枠ID
-  date_string:   string;                     // 'YYYY-MM-DD'
-  start_at_unix: number;                     // 開始時刻 (10桁)
-  slot_duration: number;                     // 所要時間（分）
-  status:        'available' | 'pending' | 'booked' | 'error';
-  expires_at:    number | null;              // 仮確保有効期限
-  retry_count:   number;
-  last_retry_at: number | null;
-  updated_at:    number;                     // 最終更新時刻
+  slot_id: string;              // id -> slot_id
+  plan_id: string;              
+  staff_id: string;
+  user_email: string | null;
+  date_string: string;          // 'YYYY-MM-DD'
+  start_at_unix: number;        
+  end_at_unix: number;          // 施術終了+バッファ込
+  booking_status: 'pending' | 'booked' | 'cancelled' | 'error'; // availableはここには存在しない
+  actual_price_amount: number;
+  actual_duration_min: number;
+  actual_buffer_min: number;
+  stripe_session_id: string | null;
+  expires_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/**
+ * スタッフ稼働チップ（供給）
+ */
+export interface StaffScheduleChip {
+  schedule_id: string;          // grd_...
+  staff_id: string;
+  date_string: string;
+  start_at_unix: number;
+  grid_size_min: number;        // 通常30
 }
 
 /**
@@ -25,128 +45,110 @@ export interface Slot {
  */
 
 /**
- * 1. 指定日の予約枠一覧を取得 (getSlotsByDate)
- * * 期限切れ pending を available とみなす「動的救済ロジック」を内包。
+ * 1. 指定日の「空きチップ」一覧を取得 (getAvailableGridByDate)
+ * * 仕組み：staff_schedules（全チップ）から、既に reservation_grid（予約済み）にあるものを除外して取得。
+ * * 期限切れ pending に紐づくチップを「空き」として扱う動的救済ロジックを LEFT JOIN で実現。
  */
-export async function getSlotsByDate(
-  db:         D1Database,
-  tenantId:   string,
+export async function getAvailableGridByDate(
+  db: D1Database,
+  staffId: string,
   dateString: string
-): Promise<Slot[]> {
-  const sql = `SELECT * FROM slots WHERE tenant_id = ? AND date_string = ? ORDER BY start_at_unix ASC`;
+): Promise<StaffScheduleChip[]> {
   const now = Math.floor(Date.now() / 1000);
 
-  const { results } = await db.prepare(sql).bind(tenantId, dateString).all<Slot>();
-  if (!results?.length) return [];
-
-  return results.map(slot => {
-    const isExpired = slot.status === 'pending' && slot.expires_at && slot.expires_at < now;
-    return isExpired ? { ...slot, status: 'available' as const } : slot;
-  });
-}
-
-/**
- * 2. アトミックな仮確保 (tryLockSlot)
- * * 指摘事項反映：
- * - status='available' または「期限切れの pending」を更新対象とする。
- * - これにより表示上の空き状況と、確保ロジックを完全に一致させている。
- */
-export async function tryLockSlot(
-  db:          D1Database,
-  id:          string,
-  tenantId:    string,
-  expiresAt:   number,                       // 新しい仮確保期限 (now + 35min)
-  now:         number                        // 判定用および Updated_at 用
-): Promise<boolean> {
+  // SQL解説:
+  // 1. スケジュール（供給）をベースにする
+  // 2. reservation_grid と slots を結合し、現在の予約状況を確認
+  // 3. 「予約がない」か「予約があっても期限切れの pending である」チップのみを抽出
   const sql = `
-    UPDATE slots 
-    SET status = 'pending', expires_at = ?, updated_at = ? 
-    WHERE id = ? AND tenant_id = ? 
-      AND (status = 'available' OR (status = 'pending' AND expires_at < ?))
+    SELECT s.*
+    FROM staff_schedules s
+    LEFT JOIN reservation_grid rg ON s.schedule_id = rg.schedule_id
+    LEFT JOIN slots sl ON rg.slot_id = sl.slot_id
+    WHERE s.staff_id = ? AND s.date_string = ?
+      AND (
+        rg.slot_id IS NULL 
+        OR (sl.booking_status = 'pending' AND sl.expires_at < ?)
+        OR (sl.booking_status = 'cancelled')
+      )
+    ORDER BY s.start_at_unix ASC
   `;
 
-  // 最後の引数(now)は WHERE 句内の expires_at < ? の判定に使用
-  const result = await db.prepare(sql).bind(expiresAt, now, id, tenantId, now).run();
-  return result.meta.changes === 1;
+  const { results } = await db.prepare(sql).bind(staffId, dateString, now).all<StaffScheduleChip>();
+  return results || [];
 }
 
 /**
- * 3. 予約の確定 (finalizeBooking)
- */
-export async function finalizeBooking(
-  db:          D1Database,
-  id:          string,
-  tenantId:    string,
-  now:         number
-): Promise<boolean> {
-  const sql = `
-    UPDATE slots 
-    SET status = 'booked', expires_at = NULL, updated_at = ? 
-    WHERE id = ? AND tenant_id = ? AND status = 'pending'
-  `;
-
-  const result = await db.prepare(sql).bind(now, id, tenantId).run();
-  return result.meta.changes === 1;
-}
-
-/**
- * 4. 決済重複チェック (checkEventProcessed)
- * * 指摘事項反映：型安全のため .first<{ event_id: string }>() を明示的に指定。
+ * 2. 決済重複チェック (checkEventProcessed)
+ * * v3.0 では shop_id(旧tenant_id) ではなく、グローバルにユニークな event_id で判定。
  */
 export async function checkEventProcessed(
-  db:          D1Database,
-  eventId:     string,
-  tenantId:    string
+  db: D1Database,
+  eventId: string
 ): Promise<boolean> {
-  const sql = `SELECT event_id FROM processed_events WHERE event_id = ? AND tenant_id = ?`;
-  const result = await db.prepare(sql).bind(eventId, tenantId).first<{ event_id: string }>();
+  const sql = `SELECT event_id FROM processed_events WHERE event_id = ?`;
+  const result = await db.prepare(sql).bind(eventId).first<{ event_id: string }>();
   return result !== null;
 }
 
 /**
- * 5. 予約枠の解放 (releaseSlot)
+ * 3. 予約枠の最終確定 (finalizeBooking)
+ * * ステータスを確定(booked)に変更し、期限を消去。
  */
-export async function releaseSlot(
-  db:          D1Database,
-  id:          string,
-  tenantId:    string,
-  now:         number
+export async function finalizeBooking(
+  db: D1Database,
+  slotId: string,
+  now: number
 ): Promise<boolean> {
   const sql = `
     UPDATE slots 
-    SET status = 'available', expires_at = NULL, updated_at = ? 
-    WHERE id = ? AND tenant_id = ? AND status = 'pending'
+    SET booking_status = 'booked', expires_at = NULL, updated_at = ? 
+    WHERE slot_id = ? AND booking_status = 'pending'
   `;
 
-  const result = await db.prepare(sql).bind(now, id, tenantId).run();
+  const result = await db.prepare(sql).bind(now, slotId).run();
   return result.meta.changes === 1;
+}
+
+/**
+ * 4. 予約のキャンセル・解放 (releaseSlot)
+ * * v3.0 では reservation_grid からの削除（物理解放）と、slots のステータス変更（証跡保存）を同時に行う。
+ * * トランザクション（D1の batch）を推奨。
+ */
+export async function releaseSlot(
+  db: D1Database,
+  slotId: string,
+  now: number
+): Promise<void> {
+  // 1. 物理的なロック（グリッド）を解放
+  const deleteGrid = db.prepare(`DELETE FROM reservation_grid WHERE slot_id = ?`).bind(slotId);
+  // 2. 予約証跡をキャンセル状態へ
+  const updateSlot = db.prepare(`
+    UPDATE slots 
+    SET booking_status = 'cancelled', updated_at = ? 
+    WHERE slot_id = ?
+  `).bind(now, slotId);
+
+  await db.batch([deleteGrid, updateSlot]);
 }
 
 /**
  * ====================================================================
  * 【次期開発者・メンテナンス担当者への申し送り事項】
  * ====================================================================
- * * 1. 設計思想：動的な「期限切れ枠」の救済ロジッ
- * 本ソースコードは、フロントエンドの表示（getSlotsByDate）と、DBの更新（tryLockSlot）
- * において「期限切れの pending 枠を available とみなす」という動的な救済ロジックを
- * 共通して内包しています。これにより、Cron による物理的な状態回収（5分間隔等）
- * の隙間で発生する「予約の機会損失」をゼロにしています。
- * * 2. 不具合時の調査ポイント
- * - 「表示は空いているが予約できない」場合：
- * getSlotsByDate 内の now (Date.now()) と、tryLockSlot に渡される now の
- * 算出ロジック、あるいは DB サーバー側のシステム時刻に乖離がないか確認してください。
- * - 状態遷移の不整合：
- * 本システムは status = 'available' / 'pending' / 'booked' のリテラル型に
- * 厳格に依存しています。TypeScript エラーを回避するために `as const` を
- * 多用している箇所があるため、型の拡張時は注意が必要です。
- * * 3. パフォーマンスとスケーラビリティ
- * - D1 へのクエリは、バインド引数の順序ミスが最も致命的なバグを生みます。
- * 特に tryLockSlot の WHERE 句は OR 条件を含み複雑化しているため、
- * SQL 文の ? の数と .bind() の引数の数が 1:1 で一致しているか常に確認してください。
- * - try/catch は「例外を上位（Hono ハンドラ等）へ正しく投げて一括管理する」方針のため、
- * 本層ではあえて実装していません。
- * * 4. 改修時の注意
- * ビジネスルールが変更（例：仮確保を35分から変更するなど）される場合、
- * 呼び出し側のロジックだけでなく、本クエリ層での「期限判定（expires_at < now）」
- * が意図した挙動になるよう、DB 上の Unix Timestamp（10桁）の整合性を維持してください。
+ * * 1. 設計思想：チップ・グリッドによる供給と需要の分離
+ * v3.0 では「枠があるから予約できる」のではなく「供給チップを予約スロットが占有する」
+ * という考え方にシフトしました。 reservation_grid テーブルの UNIQUE(schedule_id) 
+ * 制約が、ダブルブッキングを防ぐ最後の砦（物理防御）です。
+ * * 2. 動的救済ロジックの所在
+ * 以前は Slot オブジェクトを map して status を書き換えていましたが、新モデルでは
+ * SQL の LEFT JOIN 句にて「期限切れの pending に紐づくチップ」を直接抽出します。
+ * これにより、アプリケーション層での計算負荷を減らし、DB レベルで整合性を担保しています。
+ * * 3. ID の命名規則
+ * slot_id は予約単位、schedule_id は 30 分単位の物理チップを指します。
+ * finalizeBooking や releaseSlot を行う際は、常に「スロット単位」で操作することを
+ * 徹底してください。グリッドの解放は CASCADE または batch により自動化されます。
+ * * 4. バッチ処理の重要性
+ * 予約の解放などは、複数のテーブル（grid と slots）を跨ぐため、
+ * db.batch() を使用して原子性（Atomicity）を確保しています。
  */
