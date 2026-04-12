@@ -1,20 +1,12 @@
 /**
  * @file Services.tsx
  * @description 
- * 予約ページの「全体レイアウト」を統括する親コンポーネント。
- * * * ■ 役割と設計思想:
- * 1. サーバーサイド・データ統合: 
- * HonoのSSRを活用し、プラン情報(plans)および予約空き状況(slots)をDBから直接取得。
- * 2. 厳格なDB依存 (Single Source of Truth):
- * 他店舗展開を見据え、ソースコードへのプラン情報のハードコーディングを廃止。
- * DBに登録されたデータのみを表示することで、店舗間のデータ混線を物理的に防止する。
+ * 予約ページの全体レイアウトを統括。
+ * v3.0 グリッド・アトミックモデルへの移行に伴い、
+ * カレンダーの「空き状況表示」をスタッフの供給（Chips）ベースに刷新しました。
  */
 
-import { html, raw } from 'hono/html'
-
-/* --- DATA & CONSTANTS --- */
-// services の参照を廃止したため、BUSINESS_INFO は必要に応じて他の用途で使用します
-import { BUSINESS_INFO } from '../constants/info'
+import { html } from 'hono/html'
 
 /* --- LOGIC --- */
 import { generateCalendarData } from '../lib/calendar-logic'
@@ -26,7 +18,8 @@ import { ConsultantSection } from '../components/ConsultantSection'
 import { BookingFooter } from '../components/BookingFooter'
 
 /* --- DB ACCESS --- */
-import { getAvailableSlotsFromDB } from '../db/booking-db'
+// v3.0: 予約済みデータではなく、供給チップ（Chips）を取得する関数へ変更
+import { getAvailableChipsFromDB } from '../db/booking-db'
 import { getPlansFromDB } from '../db/plan-db'
 
 export const Services = async (c: any) => {
@@ -35,28 +28,30 @@ export const Services = async (c: any) => {
   /* -------------------------------------------------------------------------- */
   const currentDate = new Date();
   
-  // カレンダーの表示基盤を生成
+  // カレンダーの基本構造（日付配列）を生成
   const calendarDays = generateCalendarData(currentDate);
   
   /**
    * プラン情報の取得
-   * 【DB完全依存モード】
-   * info.ts の静的データは使用せず、DBの結果をそのまま View へ渡します。
-   * データが0件の場合のハンドリングは ServicePlanList コンポーネント側で行います。
+   * v3.0: buffer_min を含むマスターデータを取得。
+   * プランが選択されていない状態（初期表示）での制御に使用します。
    */
   const displayPlans = await getPlansFromDB(c);
+  const defaultPlanId = displayPlans[0]?.plan_id || "";
 
-  // DBから予約枠データを取得
-  const rawSlots = await getAvailableSlotsFromDB(c);
+  /**
+   * カレンダー点灯用のチップデータ取得
+   * v3.0: 「スタッフの空きチップ」が存在する日を「予約可能日」として扱います。
+   */
+  const rawChips = await getAvailableChipsFromDB(c);
 
-  // フロントエンド用データ調整
-  const availableSlots = rawSlots.map(slot => ({ 
-    ...slot, 
-    date: slot.date_string 
+  // フロントエンド用データ調整（カレンダーコンポーネントが期待する 'date' キーにマッピング）
+  const availableDates = rawChips.map(chip => ({ 
+    date: chip.date_string 
   }));
 
-  // 初期表示の日付特定
-  const firstAvailableDate = availableSlots[0]?.date || "";
+  // 初期表示時にフォーカスする日付（一番近い空き日、または今日）
+  const firstAvailableDate = availableDates[0]?.date || "";
   const baseYear = currentDate.getFullYear();
   const baseMonth = currentDate.getMonth() + 1;
 
@@ -78,15 +73,13 @@ export const Services = async (c: any) => {
       <div class="max-w-3xl mx-auto p-6">
         <section class="mb-12">
           <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">01. Select Plan</h2>
-          
           ${ServicePlanList(displayPlans)}
-          
         </section>
 
         <div id="calendar-container" class="mb-12">
           ${CalendarSection(
             calendarDays, 
-            availableSlots, 
+            availableDates, // slots ではなく chips ベースのデータを渡す
             firstAvailableDate, 
             baseYear, 
             baseMonth
@@ -94,16 +87,17 @@ export const Services = async (c: any) => {
         </div>
 
         <div id="slot-list-container" class="mb-12"
-            hx-get="/services/slots?date=${firstAvailableDate}"
+            hx-get="/services/slots?date=${firstAvailableDate}&plan_id=${defaultPlanId}"
             hx-trigger="load"
         >
-            <p class="text-sm text-gray-400 text-center py-8 border-2 border-dashed border-gray-100 rounded-xl">
-                読み込み中...
-            </p>
+            <div class="flex flex-col items-center py-12">
+              <div class="animate-spin h-6 w-6 border-2 border-gray-900 border-t-transparent rounded-full mb-4"></div>
+              <p class="text-xs text-gray-400 tracking-widest uppercase">Finding available slots...</p>
+            </div>
         </div>
 
-        <div id="error-display" class="hidden mb-12 p-4 bg-red-50 text-red-500 text-sm rounded-lg text-center">
-          通信エラーが発生しました。ページを再読み込みしてください。
+        <div id="error-display" class="hidden mb-12 p-4 bg-red-50 text-red-500 text-xs rounded-lg text-center">
+          予約データの取得中にエラーが発生しました。ページをリロードしてください。
         </div>
 
         ${ConsultantSection()}
@@ -113,8 +107,15 @@ export const Services = async (c: any) => {
 
       <script>
         /**
-         * HTMX ネットワークエラーハンドリング
+         * v3.0 フロントエンド・インタラクション
+         * プラン選択や日付選択が変更された際、HTMXリクエストをトリガーする補助関数
          */
+        function refreshSlots() {
+          const container = document.getElementById('slot-list-container');
+          // 現在選択されている date と plan_id を集計して htmx.ajax() 等で更新するロジックをここに集約可能
+          htmx.trigger(container, 'refresh');
+        }
+
         document.body.addEventListener('htmx:responseError', function(evt) {
           const errorDiv = document.getElementById('error-display');
           if (errorDiv) errorDiv.classList.remove('hidden');
