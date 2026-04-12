@@ -1,17 +1,18 @@
 /**
  * @file CalendarSection.tsx
  * @description 
- * カレンダーの描画と日付選択を担当。
- * 各日付セルに HTMX の属性を追加し、クリック時に予約枠を動的取得するようにしました。
- * 修正点：選択時の枠線が欠ける問題（コの字）を inset shadow で解決し、選択状態の解除を確実にしています。
+ * 予約ページの「日付選択」UIを構成します。
+ * [v3.0 Grid-Atomic対応]
+ * 修正内容: hx-include を導入し、プランIDの送信を宣言的に変更。
+ * 複雑なJavaScriptによるパラメータ同期を廃止しました。
  */
 
 import { html } from 'hono/html'
 
 const CONFIG = {
-  ACTIVE_RESERVATION_DAYS: 14,
-  CELL_MIN_HEIGHT: 'min-h-[60px]',
-  MAX_WIDTH: 'max-w-md',
+  ACTIVE_RESERVATION_DAYS: 90,    // 予約を受け付ける期間（今日から90日間）
+  CELL_MIN_HEIGHT: 'min-h-[60px]', // カレンダーセルの最小高さ
+  MAX_WIDTH: 'max-w-md',          // カレンダーの最大幅
 };
 
 export const CalendarSection = (
@@ -23,6 +24,7 @@ export const CalendarSection = (
 ) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  
   const activeLimitDate = new Date(today);
   activeLimitDate.setDate(today.getDate() + CONFIG.ACTIVE_RESERVATION_DAYS);
 
@@ -37,6 +39,7 @@ export const CalendarSection = (
       </div>
 
       <div class="bg-white border border-gray-200 rounded-sm overflow-hidden mb-8 shadow-sm ${CONFIG.MAX_WIDTH} mx-auto">
+        
         <div class="grid grid-cols-7 bg-gray-50 border-b border-gray-100">
           ${['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => html`
             <div class="py-3 text-[10px] font-bold text-center tracking-widest ${i === 0 ? 'text-red-700/60' : i === 6 ? 'text-blue-700/60' : 'text-gray-400'}">
@@ -47,7 +50,6 @@ export const CalendarSection = (
 
         <div class="grid grid-cols-7 gap-px bg-gray-100">
           ${calendarDays.map((day) => {
-            // lib/calendar-logic.ts で生成された日付データを利用
             const isoDateStr = day.dateStr; 
             const dateObj = day.date;
             const d = day.dayNum;
@@ -59,33 +61,31 @@ export const CalendarSection = (
             const shouldHighlightSlot = isAvailable && (day.isCurrentMonth || isInActivePeriod);
             const showMonthLabel = day.isFirstDay;
 
-            /**
-             * 選択状態のスタイル定義
-             * ring-2 はグリッド境界で欠ける（コの字になる）ため、内側への shadow-inset を使用。
-             * 選択時は最前面 (z-10) に出すことで、枠線を際立たせます。
-             */
             const selectedClasses = isSelected 
               ? 'bg-blue-50 shadow-[inset_0_0_0_2px_#2c5282] z-10' 
               : 'bg-white';
 
-            /**
-             * ★HTMXの設定ポイント
-             * 1. hx-get: クリック時に予約枠一覧を取得
-             * 2. hx-target: 取得したHTMLを #slot-list-container へ挿入
-             * 3. hx-on:click: 
-             * - 既存の全セルの選択スタイルと data-selected 属性をリセット
-             * - クリックされた要素にのみ選択スタイルと data-selected="true" を付与
-             */
             return html`
               <div class="calendar-day-cell group relative ${CONFIG.CELL_MIN_HEIGHT} flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50/30 transition-all ${selectedClasses}"
                    data-date="${isoDateStr}"
                    data-selected="${isSelected ? 'true' : 'false'}"
                    data-available="${isAvailable ? 'true' : 'false'}"
                    
-                   hx-get="/services/slots?date=${isoDateStr}"
+                   /**
+                    * ★HTMXロジック (v3.1 安定版):
+                    * 1. hx-get: スロット取得エンドポイント
+                    * 2. hx-vals: このセル固有の日付データのみをJSONで定義
+                    * 3. hx-include: ページ内の 'plan_id' ラジオボタンを自動的にリクエストに含める
+                    */
+                   hx-get="/services/slots"
+                   hx-vals='{"date": "${isoDateStr}"}'
+                   hx-include="[name='plan_id']"
                    hx-target="#slot-list-container"
                    hx-trigger="click"
 
+                   /**
+                    * ★UIインタラクション:
+                    */
                    hx-on:click="
                     document.querySelectorAll('.calendar-day-cell').forEach(el => {
                       el.classList.remove('bg-blue-50', 'shadow-[inset_0_0_0_2px_#2c5282]', 'z-10');
@@ -121,7 +121,6 @@ export const CalendarSection = (
           })}
         </div>
       </div>
-
-      </section>
+    </section>
   `
 }

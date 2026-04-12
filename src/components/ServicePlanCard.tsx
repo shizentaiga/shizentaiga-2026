@@ -1,19 +1,22 @@
 /**
  * @file ServicePlanCard.tsx
  * @description 予約可能なプラン一覧（01. Select Plan）をレンダリングするコンポーネント。
- * DBから取得したプラン配列をループ処理し、カード形式の UI を生成します。
+ * * --- 今回の教訓と修正のポイント ---
+ * 1. 【HTMXとのデータ連携】:
+ * hx-include が値を拾うためには、HTML要素が name 属性と value を持っている必要があります。
+ * div の data 属性ではなく、<input> 要素（今回は radio）を使うのが正解です。
+ * * 2. 【labelタグの活用】:
+ * カード全体を <label> にすることで、中のラジオボタンを hidden にしても、
+ * カードをクリックするだけで「値の選択」が成立します。
+ * * 3. 【Tailwindの条件付きスタイル】:
+ * has-checked モディファイアを使用し、JavaScriptを使わずに
+ * 「選択されたプランの枠線を青くする」というUIフィードバックを実現しました。
  */
 
 import { html } from 'hono/html'
-// DBアクセス関連の型定義をインポート
-import { ServicePlan } from '../db/plan-db'
 
-/**
- * ServicePlanList コンポーネント
- * @param services - db/plan-db.ts から取得した ServicePlan[] 
- */
 export const ServicePlanList = (services: readonly any[]) => {
-  // --- 【追記】プランが1件も登録されていない場合のゼロデータ表示 ---
+  // プラン未登録時のゼロデータ表示
   if (!services || services.length === 0) {
     return html`
       <div class="p-12 text-center border-2 border-dashed border-gray-100 rounded-sm bg-white">
@@ -23,22 +26,23 @@ export const ServicePlanList = (services: readonly any[]) => {
     `;
   }
 
-  // プランが存在する場合のみ、以下のリストをレンダリング
   return html`
     <div id="plan-list-container" class="space-y-4">
       ${services.map((s, index) => {
-        // 顧問契約プラン（pln_advisor）判定
         const isRetainer = s.plan_id === 'pln_advisor';
-        
-        // UI補足：DBに単位がない場合のフォールバック
         const displaySuffix = s.suffix || (isRetainer ? '1ヶ月〜' : '分');
+        const isSelected = index === 0;
 
         return html`
-          <div class="selection-card plan-card flex justify-between items-center p-6 bg-white rounded-sm cursor-pointer transition-all" 
+          <label class="selection-card plan-card flex justify-between items-center p-6 bg-white rounded-sm cursor-pointer transition-all border border-transparent has-checked:border-blue-500 has-checked:bg-blue-50/30" 
                data-plan-id="${s.plan_id}"
-               data-price="${s.price_amount}"
-               data-is-consulting="${isRetainer ? 'true' : 'false'}"
-               data-selected="${index === 0 ? 'true' : 'false'}">
+               data-selected="${isSelected ? 'true' : 'false'}">
+            
+            <input type="radio" 
+                   name="plan_id" 
+                   value="${s.plan_id}" 
+                   class="hidden" 
+                   ${isSelected ? 'checked' : ''}>
             
             <div>
               <h3 class="text-sm font-bold text-gray-900">${s.plan_name}</h3>
@@ -53,17 +57,9 @@ export const ServicePlanList = (services: readonly any[]) => {
                 ${s.duration_min > 0 ? s.duration_min : ''}${displaySuffix}
               </span>
             </div>
-            
-          </div>
+          </label>
         `
       })}
     </div>
   `;
 }
-
-/**
- * 【運用上のメモ】
- * 本コンポーネントはDBからのデータ取得を前提としています。
- * 多店舗展開時、各店舗の plan_id に基づき、動的に内容が切り替わります。
- * 静的データ（info.ts）への依存は、DB運用の確定に伴い廃止されました。
- */
