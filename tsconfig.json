@@ -1,25 +1,40 @@
 {
   "compilerOptions": {
+    /* 基本設定 */
     "target": "ESNext",
     "module": "ESNext",
-    "lib": ["ESNext", "DOM", "DOM.Iterable"], /* ← ここに DOM 関連を追加 */
     "moduleResolution": "Bundler",
-    "strict": true,                /* すべての厳格な型チェックオプションを有効化 */
-    "noImplicitAny": true,         /* 明示的でない 'any' がある場合にエラーにする */
-    "strictNullChecks": true,       /* null/undefined の扱いを厳密にする */    
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
+
+    /* 厳格な型チェック（堅牢なコードのために必須） */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    
+    /* ⚡️ ノイズ抑制: 外部ライブラリや型定義ファイル (.d.ts) のチェックをスキップ */
     "skipLibCheck": true,
+
+    /* モジュール解決と型定義 */
     "types": [
       "@cloudflare/workers-types",
       "@cloudflare/vitest-pool-workers",
       "vite/client"
     ],
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
     "resolveJsonModule": true,
-    "allowJs": true
+    "allowJs": true,
+    "isolatedModules": true,
+    "esModuleInterop": true
   },
   "include": [
     "src/**/*",
-    "test/**/*"
+    "test/**/*",
+    "_debug/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.min.js"
   ]
 }
