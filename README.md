@@ -35,43 +35,37 @@
 src/
 ├── index.tsx                # 【司令塔】ルーティング・エントリポイント
 ├── renderer.tsx             # 【共通の額縁】HTML基盤・SEO・外部資産管理
-├── style.css                # 【外観】共通デザイン・独自クラス（PSI対策済み）
+├── style.css                # 【外観】共通デザイン（Tailwind/独自クラス）
 │
 ├── pages/                   # 【ページレイアウト】各画面の構成・データ統合
 │   ├── Top.tsx
-│   ├── Services.tsx         # ★改修：DB連携対応、asyncによるサーバーサイドデータ統合
-│   └── (他：Legal.tsx, Thanks.tsx 等)
+│   ├── Services.tsx         # サービス一覧・予約メイン（SSR/HTMX統合）
+│   └── (Legal.tsx 等)
 │
 ├── components/              # 【UI部品】再利用可能な純粋コンポーネント
-│   ├── Calendar/            # カレンダー描画および日付選択UI
-│   ├── TimeSlot/            # ★新規：選択日付に基づく時間枠の一覧表示
-│   ├── Payment/             # ★新規：決済手段の選択・確認UI
-│   ├── ServicePlanCard.tsx  # プラン選択の各カード
-│   ├── BookingFooter.tsx    # 画面下部の動的金額表示・予約実行ボタン
-│   └── ConsultantSection.tsx # プロフィール・信頼性情報の提示
+│   ├── Booking/             # 予約フロー（CalendarSection, SlotList, PlanCard 等）
+│   ├── Layout/              # 共通パーツ（Footer, ConsultantSection 等）
+│   └── Stripe/              # ★今後追加：決済・Checkout関連コンポーネント
 │
 ├── lib/                     # 【共有ロジック】計算・外部API連携の純粋関数
-│   ├── calendar-logic.ts    # カレンダーの日付・曜日計算
-│   ├── api-client.ts        # ★新規：フロントエンド通信（fetch）の共通化
+│   ├── calendar-logic.ts    # カレンダーの日付・曜日計算（date-fns活用）
+│   ├── slot-logic.ts        # ★重要：予約枠確保・Expire判定アルゴリズム
 │   └── stripe.ts            # Stripe Checkout 連携・署名検証ロジック
 │
-├── constants/               # 【静的定義】変更頻度の低いマスタデータ
-│   └── info.ts              # サービス名・価格・基本マスタ
+├── db/                      # 【データアクセス】D1 永続化層との通信
+│   ├── schema.sql           # テーブル定義
+│   ├── queries.ts           # SQLクエリの集約・管理
+│   ├── seeds/               # 初期データ投入用SQLスクリプト群
+│   └── (booking-db.ts 等)    # 各種DB操作関数
 │
-├── db/                      # 【データアクセス】永続化層との直接通信
-│   ├── schema.sql           # D1 テーブル定義（v1.7準拠）
-│   └── booking-db.ts        # 予約枠専用：shizentaiga_db への安全なアクセス
+├── client/                  # 【ブラウザ側ロジック】HTMX外の補完的インタラクション
+│   └── booking-interaction.ts
 │
-└── _sandbox/                # 【検証エリア】本番環境から分離された開発・実験場
-    ├── _bridge.ts           # index.tsx との接続を管理する絶縁体
-    ├── _router.ts           # サンドボックス内ルーティング台帳
-    └── tests/               # 各種テスト用モジュール（順次追加）
+├── constants/               # 【静的定義】サービス価格・基本マスタデータ
+└── _sandbox/                # 【検証エリア】機能別のサンドボックス・テスト実装群
 
-public/                      # 【フロントエンド資産】ブラウザで直接動作するロジック
-├── js/
-│   ├── booking-ui.js        # ★拡張：カレンダー・時間枠の選択状態管理、DOM操作
-│   └── booking-payment.js   # ★新規：決済処理の呼び出し・エラーハンドリング
-└── (favicon.ico, robots.txt 等)
+public/                      # 【静的資産】
+└── (favicon.ico, images 等)  ※ JS処理は原則 HTMX へ移行済み
 ~~~
 
 [!NOTE]
