@@ -1,10 +1,12 @@
 -- =========================================================================
--- seed_01_master.sql (Service Page Initial Data) v3.0対応版
+-- seed_01_master.sql (Service Page Initial Data) v3.0 べき等性確保版
 -- [規約]
--- 1. 時刻指定: unixepoch('YYYY-MM-DD HH:MM:SS') を使用。
+-- 1. べき等性の確保: 実行時に既存データを INSERT OR REPLACE で処理。
+--    2回目以降の実行でも一意制約エラーを出さず、最新の定義にアップデートします。
+-- 2. 時刻指定: unixepoch('YYYY-MM-DD HH:MM:SS') を使用。
 --    SQLiteはこれをUTCとして扱うため、JSTから9時間引いた時刻を記述し、
 --    コメントに本来のJST時刻を明記する。
--- 2. ID指定: 本番はULIDだが、シードでは可読性のため prefix_名前 を使用。
+-- 3. ID指定: 本番はULIDだが、シードでは可読性のため prefix_名前 を使用。
 -- =========================================================================
 -- [実行・管理コマンド]
 -- SQL実行: npx wrangler d1 execute shizentaiga_db --local --file=./src/db/seed_01_master.sql
@@ -18,7 +20,8 @@ PRAGMA foreign_keys = ON;
 -- -------------------------------------------------------------------------
 -- 1. 店舗（shops）
 -- -------------------------------------------------------------------------
-INSERT INTO shops (shop_id, shop_name, created_at, updated_at)
+-- INSERT OR REPLACE により、shop_id が重複してもエラーにならず上書きされます
+INSERT OR REPLACE INTO shops (shop_id, shop_name, created_at, updated_at)
 VALUES (
     'shp_zenyu', 
     '善幽', 
@@ -29,11 +32,11 @@ VALUES (
 -- -------------------------------------------------------------------------
 -- 2. スタッフ（staffs）
 -- -------------------------------------------------------------------------
-INSERT INTO staffs (staff_id, shop_id, real_name, staff_display_name, created_at, updated_at)
+INSERT OR REPLACE INTO staffs (staff_id, shop_id, real_name, staff_display_name, created_at, updated_at)
 VALUES (
     'stf_shizentaiga', 
     'shp_zenyu', 
-    '清善 泰賀',            -- 実名管理用（User Summaryに基づき変更）
+    '清善 泰賀',            -- 実名管理用
     '清善 泰賀', 
     unixepoch('2026-04-11 03:00:00'), -- JST 12:00
     unixepoch('2026-04-11 03:00:00')
@@ -43,7 +46,8 @@ VALUES (
 -- 3. プラン（plans）
 -- -------------------------------------------------------------------------
 -- v3.0より buffer_min (デフォルト30分) を追加
-INSERT INTO plans (
+-- 既存のプラン定義がある場合は、最新の duration や buffer 設定で上書きします
+INSERT OR REPLACE INTO plans (
     plan_id, 
     shop_id, 
     plan_name, 
@@ -55,7 +59,7 @@ INSERT INTO plans (
     created_at, 
     updated_at
 ) VALUES 
--- 経営コンサルティング
+-- A. 経営コンサルティング
 (
     'pln_consulting', 
     'shp_zenyu', 
@@ -68,7 +72,7 @@ INSERT INTO plans (
     unixepoch('2026-04-11 03:00:00'), 
     unixepoch('2026-04-11 03:00:00')
 ),
--- 資金調達プラン 初回相談
+-- B. 資金調達プラン 初回相談
 (
     'pln_funding', 
     'shp_zenyu', 
@@ -81,7 +85,7 @@ INSERT INTO plans (
     unixepoch('2026-04-11 03:00:00'), 
     unixepoch('2026-04-11 03:00:00')
 ),
--- 顧問契約プラン
+-- C. 顧問契約プラン
 (
     'pln_advisor', 
     'shp_zenyu', 
