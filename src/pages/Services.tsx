@@ -17,11 +17,11 @@ import { format } from 'date-fns' // 日付操作ライブラリ
 import { generateCalendarData } from '../lib/calendar-logic'
 
 /* --- COMPONENTS --- */
-import { ServicePlanList } from '../components/ServicePlanCard'
-import { CalendarSection } from '../components/CalendarSection'
-import { ConsultantSection } from '../components/ConsultantSection'
-import { BookingFooter } from '../components/BookingFooter'
-import { SlotList } from '../components/SlotList'
+import { ServicePlanList } from '../components/Booking/ServicePlanCard'
+import { CalendarSection } from '../components/Booking/CalendarSection'
+import { ConsultantSection } from '../components/Layout/ConsultantSection'
+import { BookingFooter } from '../components/Booking/BookingFooter'
+import { SlotList } from '../components/Booking/SlotList'
 
 /* --- DB ACCESS --- */
 import { getAvailableChipsFromDB } from '../db/booking-db'

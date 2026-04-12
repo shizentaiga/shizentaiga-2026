@@ -6,7 +6,7 @@
  */
 
 import { html } from 'hono/html'
-import { BUSINESS_INFO } from '../constants/info'
+import { BUSINESS_INFO } from '../../constants/info'
 
 export const Footer = () => {
   // 現在の西暦を取得（毎年書き換える手間を省くための自動化）

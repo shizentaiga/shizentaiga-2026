@@ -13,7 +13,7 @@ import { Services } from './pages/Services'
 
 /* --- COMPONENTS --- */
 // v3.0: 断片生成用のページ（ServiceSlots）を廃止し、共通コンポーネント SlotList を直接使用します
-import { SlotList } from './components/SlotList'
+import { SlotList } from './components/Booking/SlotList'
 
 const app = new Hono()
 

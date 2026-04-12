@@ -6,7 +6,7 @@
  */
 
 import { html } from 'hono/html'
-import { Footer } from '../components/Footer'
+import { Footer } from '../components/Layout/Footer'
 import { BUSINESS_INFO } from '../constants/info'
 
 export const Legal = () => {

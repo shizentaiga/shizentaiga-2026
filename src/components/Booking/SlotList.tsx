@@ -7,8 +7,8 @@
  */
 
 import { html } from 'hono/html'
-import { getAvailableChipsFromDB } from '../db/booking-db'
-import { getPlansFromDB } from '../db/plan-db'
+import { getAvailableChipsFromDB } from '../../db/booking-db'
+import { getPlansFromDB } from '../../db/plan-db'
 
 /* --- CONFIGURATION --- */
 /**
