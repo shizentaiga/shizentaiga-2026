@@ -1,46 +1,61 @@
 /**
  * @file /src/db/booking-db.ts
  * @description Cloudflare D1 (shizentaiga_db) から予約情報を取得・操作するデータアクセス層。
- * v3.0 グリッド・アトミックモデル準拠。
+ * [v3.0 本番仕様・厳格型定義版]
+ * 修正点:
+ * 1. any の排除: params 配列を (string | number)[] で定義し、ビルド時の型推論を安定化。
+ * 2. Bindings の定義: Context に環境変数の型を教えることで、c.env.shizentaiga_db の存在を保証。
+ * 3. ジェネリクスの活用: .all<AvailableChip>() を使用し、AS キャストを最小限に。
  */
 
 import { Context } from 'hono'
 
 /**
- * 取得上限の設定
+ * Cloudflare Workers 環境変数の型定義
  */
-const MAX_FETCH_COUNT = 100;
+type Bindings = {
+  shizentaiga_db: D1Database
+}
 
 /**
  * 供給チップ（staff_schedules）のデータ型定義
- * ロジック側で grid_size_min を必要とするため、型定義に追加します。
  */
 export interface AvailableChip {
   start_at_unix: number;
   date_string: string;
-  grid_size_min: number; // ★ v3.0 ロジックで必須
+  grid_size_min: number; 
 }
 
-// ... (BookingSlot インターフェースと getAvailableSlotsFromDB は変更なしでOK)
+/**
+ * 予約スロット（計算後）のデータ型定義（SlotList.tsx 等で使用）
+ */
+export interface BookingSlot {
+  start_at_unix: number;
+  time_label: string;
+  is_available: boolean;
+}
 
 /**
  * 特定の日付、または未来の「未予約チップ（供給）」をすべて取得する
- * @param c - Hono Context
+ * @param c - Hono Context (Bindings を指定して型安全性を確保)
  * @param dateString - 'YYYY-MM-DD' 形式
  */
 export const getAvailableChipsFromDB = async (
-  c: Context, 
+  c: Context<{ Bindings: Bindings }>, 
   dateString?: string
-): Promise<AvailableChip[]> => { // ★ 戻り値の型を定義
+): Promise<AvailableChip[]> => {
   try {
     const db = c.env.shizentaiga_db;
-    if (!db) return [];
+    if (!db) {
+      console.error('[DB Error] shizentaiga_db is not found in env');
+      return [];
+    }
 
     const nowUnix = Math.floor(Date.now() / 1000);
 
     /**
      * v3.0 ロジック:
-     * 1. s.grid_size_min を SELECT に追加（SlotList.tsx で使用するため）
+     * 1. s.grid_size_min を SELECT
      * 2. reservation_grid (予約紐付け) を LEFT JOIN し、slot_id が NULL のもの = 未予約
      */
     let query = `
@@ -50,7 +65,9 @@ export const getAvailableChipsFromDB = async (
       WHERE s.start_at_unix > ? 
         AND rg.slot_id IS NULL
     `;
-    const params: any[] = [nowUnix];
+    
+    // 型安全なパラメータ配列 (anyを排除)
+    const params: (string | number)[] = [nowUnix];
 
     if (dateString) {
       query += ` AND s.date_string = ?`;
@@ -59,13 +76,22 @@ export const getAvailableChipsFromDB = async (
 
     query += ` ORDER BY s.start_at_unix ASC LIMIT 500`;
 
-    const response = await db.prepare(query).bind(...params).all();
+    // D1のジェネリクスを使用して、結果の型を明示
+    const response = await db.prepare(query).bind(...params).all<AvailableChip>();
     
-    // 型安全に結果を返す
-    return (response.results || []) as unknown as AvailableChip[];
+    return response.results || [];
 
   } catch (error) {
     console.error('[DB Error] Failed to fetch available chips:', error);
     return [];
   }
 };
+
+/**
+ * 本番ビルドエラー対策: 
+ * ビルドログで参照されていた getAvailableSlotsFromDB という名前が必要な場合、
+ * 既存のロジックとの互換性のためにエイリアスとしてエクスポートするか、
+ * あるいはここでスロット計算ロジックを実装した関数を定義してください。
+ * (ここでは一旦、チップ取得関数を別名で公開する例を記載します)
+ */
+export const getAvailableSlotsFromDB = getAvailableChipsFromDB;

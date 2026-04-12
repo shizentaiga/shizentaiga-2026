@@ -4,7 +4,9 @@
     "module": "ESNext",
     "lib": ["ESNext", "DOM", "DOM.Iterable"], /* ← ここに DOM 関連を追加 */
     "moduleResolution": "Bundler",
-    "strict": true,
+    "strict": true,                /* すべての厳格な型チェックオプションを有効化 */
+    "noImplicitAny": true,         /* 明示的でない 'any' がある場合にエラーにする */
+    "strictNullChecks": true,       /* null/undefined の扱いを厳密にする */    
     "skipLibCheck": true,
     "types": [
       "@cloudflare/workers-types",
