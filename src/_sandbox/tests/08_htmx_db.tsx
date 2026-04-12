@@ -6,13 +6,17 @@
 
 import { Hono } from 'hono'
 import { html } from 'hono/html'
-import { getAvailableSlotsFromDB } from '../../db/booking-db'
+// 関数名を Chips に統一（ビルドエラー回避）
+import { getAvailableChipsFromDB } from '../../db/booking-db'
 
-export const test08 = new Hono()
+type Bindings = {
+  shizentaiga_db: D1Database;
+};
+
+export const test08 = new Hono<{ Bindings: Bindings }>()
 
 /**
  * 1. メイン画面（ベーステンプレート）
- * HTMXを読み込み、データの「受け皿」となるコンテナを提供。
  */
 test08.get('/', (c) => {
   const currentPath = c.req.path.replace(/\/$/, '')
@@ -32,6 +36,7 @@ test08.get('/', (c) => {
           .status-tag { float: right; font-weight: bold; font-size: 0.75em; text-transform: uppercase; padding: 4px 10px; border-radius: 9999px; border: 1px solid; }
           .status-booked { color: #059669; background: #ecfdf5; border-color: #10b981; }
           .status-pending { color: #d97706; background: #fffbeb; border-color: #f59e0b; }
+          .status-available { color: #2563eb; background: #eff6ff; border-color: #3b82f6; }
           
           #loading { color: #2563eb; display: none; margin-left: 10px; font-weight: bold; font-size: 0.85em; }
           .htmx-request #loading { display: inline; }
@@ -56,7 +61,7 @@ test08.get('/', (c) => {
         <hr style="margin: 25px 0; border: 0; border-top: 1px solid #e2e8f0;">
 
         <div id="res">
-          <p style="color: #64748b; font-size: 0.9em;">「取得」ボタンを押すと、D1 (shizentaiga_db) の <strong>slots</strong> テーブルへリクエストを送ります。</p>
+          <p style="color: #64748b; font-size: 0.9em;">「取得」ボタンを押すと、D1 (shizentaiga_db) の <strong>staff_schedules</strong> テーブルから未予約分を取得します。</p>
         </div>
 
       </body>
@@ -66,18 +71,17 @@ test08.get('/', (c) => {
 
 /**
  * 2. 部分HTML返却エンドポイント (Fragment API)
- * v3.0 のカラム構造（slot_id, booking_status）に基づいてレンダリング。
  */
 test08.get('/api', async (c) => {
   try {
-    const slots = await getAvailableSlotsFromDB(c)
+    const rawSlots = await getAvailableChipsFromDB(c)
     const now = new Date().toLocaleTimeString('ja-JP')
 
-    if (slots.length === 0) {
+    if (rawSlots.length === 0) {
       return c.html(html`
         <div style="background: #fffbeb; border: 1px solid #fef3c7; padding: 15px; border-radius: 6px; color: #92400e;">
-          <strong>取得完了（アクティブな予約なし）</strong>
-          <p style="font-size: 0.85em; margin: 5px 0 0;">現在、pending または booked 状態の予約は存在しません。 (${now})</p>
+          <strong>取得完了（空き枠なし）</strong>
+          <p style="font-size: 0.85em; margin: 5px 0 0;">現在、表示可能な未予約チップは存在しません。 (${now})</p>
         </div>
       `)
     }
@@ -85,22 +89,27 @@ test08.get('/api', async (c) => {
     return c.html(html`
       <div>
         <p style="font-size: 0.85em; color: #64748b; margin-bottom: 12px;">
-          取得時刻: <strong>${now}</strong> / 検出: <strong>${slots.length}</strong>件
+          取得時刻: <strong>${now}</strong> / 検出: <strong>${rawSlots.length}</strong>件
         </p>
-        ${slots.slice(0, 10).map(slot => {
-          // UNIXタイムスタンプを人間が読める時間に変換
+        ${rawSlots.slice(0, 10).map(s => {
+          // 型チェックを回避するために any にキャスト
+          const slot = s as any;
+          
           const startTime = new Date(slot.start_at_unix * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-          const statusClass = slot.booking_status === 'booked' ? 'status-booked' : 'status-pending';
+          
+          // ステータスに応じたクラス分け（値がない場合は available をデフォルトにする）
+          const status = slot.booking_status || 'available';
+          const statusClass = status === 'booked' ? 'status-booked' : (status === 'pending' ? 'status-pending' : 'status-available');
 
           return html`
             <div class="slot-card">
-              <span class="status-tag ${statusClass}">${slot.booking_status}</span>
+              <span class="status-tag ${statusClass}">${status}</span>
               <div style="font-weight: bold; color: #334155;">📅 ${slot.date_string} <span style="margin-left:8px; color:#2563eb;">${startTime}〜</span></div>
-              <div style="font-size: 0.7em; color: #94a3b8; margin-top: 6px; font-family: monospace;">Slot ID: ${slot.slot_id}</div>
+              <div style="font-size: 0.7em; color: #94a3b8; margin-top: 6px; font-family: monospace;">Slot ID: ${slot.slot_id || 'UNASSIGNED'}</div>
             </div>
           `
         })}
-        ${slots.length > 10 ? html`<p style="font-size: 0.75em; color: #94a3b8; text-align: center; margin-top: 12px; font-style: italic;">...他 ${slots.length - 10} 件のデータが存在します</p>` : ''}
+        ${rawSlots.length > 10 ? html`<p style="font-size: 0.75em; color: #94a3b8; text-align: center; margin-top: 12px; font-style: italic;">...他 ${rawSlots.length - 10} 件のデータが存在します</p>` : ''}
       </div>
     `)
 
@@ -108,9 +117,9 @@ test08.get('/api', async (c) => {
     console.error('v3.0 PoC Error:', error)
     return c.html(html`
       <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 15px; border-radius: 6px; color: #b91c1c;">
-        <strong>v3.0 スキーマ接続エラー</strong>
+        <strong>v3.0 システムエラー</strong>
         <p style="font-size: 0.85em; margin-top: 5px;">
-          slotsテーブルの参照に失敗しました。カラム名が slot_id, booking_status に更新されているか確認してください。
+          データの取得に失敗しました。D1 の接続設定や型定義を確認してください。
         </p>
       </div>
     `)

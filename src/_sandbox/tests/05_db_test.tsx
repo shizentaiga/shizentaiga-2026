@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import { html } from 'hono/html';
-import { getAvailableSlotsFromDB } from '../../db/booking-db';
+import { getAvailableChipsFromDB } from '../../db/booking-db';
 
 type Bindings = {
   shizentaiga_db: D1Database;
@@ -16,8 +16,7 @@ export const test05 = new Hono<{ Bindings: Bindings }>();
 
 test05.get('/', async (c) => {
   // DBからデータを取得
-  // getAvailableSlotsFromDB 内で v3.0 のカラム（slot_id, booking_status）を参照している前提です
-  const slots = await getAvailableSlotsFromDB(c);
+  const slots = await getAvailableChipsFromDB(c);
   const now = new Date().toLocaleString('ja-JP');
 
   return c.html(html`
@@ -52,20 +51,23 @@ test05.get('/', async (c) => {
         </div>
 
         <div class="space-y-4">
-          <h2 class="text-sm font-bold text-slate-700">Data Preview (Slots Table)</h2>
+          <h2 class="text-sm font-bold text-slate-700">Data Preview (Available Chips)</h2>
           
           ${slots.length === 0 
             ? html`
               <div class="bg-amber-50 border border-amber-100 p-4 rounded text-amber-700 text-sm">
                 表示できるデータがありません。
                 <ul class="list-disc ml-5 mt-2 space-y-1 text-xs">
-                  <li>seed_03_slots.sql が実行されているか確認してください</li>
-                  <li>論理削除（cancelled等）されていないか確認してください</li>
+                  <li>staff_schedules テーブルに未来のデータがあるか確認してください</li>
+                  <li>reservation_grid に紐付いていない（未予約）データのみ表示されます</li>
                 </ul>
               </div>` 
             : html`
               <div class="border rounded divide-y overflow-hidden">
-                ${slots.slice(0, 10).map(slot => {
+                ${slots.slice(0, 10).map((s) => {
+                  // テスト用に型を一時的に緩める
+                  const slot = s as any;
+
                   // UNIXタイムを可読性の高い時間に変換
                   const timeDisplay = new Date(slot.start_at_unix * 1000).toLocaleTimeString('ja-JP', {
                     hour: '2-digit',
@@ -79,11 +81,11 @@ test05.get('/', async (c) => {
                           <span class="text-sm font-mono font-bold text-slate-700">${slot.date_string}</span>
                           <span class="text-xs font-mono text-blue-600 bg-blue-50 px-1 rounded">${timeDisplay}〜</span>
                         </div>
-                        <p class="text-[9px] text-slate-400 mt-1 font-mono uppercase">ID: ${slot.slot_id}</p>
+                        <p class="text-[9px] text-slate-400 mt-1 font-mono uppercase">ID: ${slot.slot_id || 'UNASSIGNED'}</p>
                       </div>
                       <div class="text-right">
                         <span class="text-[10px] font-bold py-1 px-2 rounded-full border border-blue-200 bg-white text-blue-600 uppercase shadow-sm">
-                          ${slot.booking_status}
+                          ${slot.booking_status || 'AVAILABLE'}
                         </span>
                       </div>
                     </div>
