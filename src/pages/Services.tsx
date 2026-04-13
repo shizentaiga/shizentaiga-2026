@@ -62,7 +62,7 @@ export const Services = async (c: Context) => {
       
       <header class="bg-white py-12 text-center border-b border-gray-100">
         <h1 class="text-xl font-medium tracking-[0.2em] uppercase text-gray-900">Service Booking</h1>
-        <p class="text-[10px] text-gray-600 mt-2 tracking-widest">${BUSINESS_INFO.shopName} - PRIVATE CONSULTATION</p>
+        <p class="text-[10px] text-gray-600 mt-2 tracking-widest">PRIVATE CONSULTATION</p>
       </header>
 
       <div class="max-w-3xl mx-auto p-6">
