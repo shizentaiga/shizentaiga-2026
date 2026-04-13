@@ -29,40 +29,50 @@
 
 ---
 
-## 📂 ファイル構成 (Architecture)
+## 📂 プロジェクト構成 (Project Structure)
 
 ~~~
 src/
-├── index.tsx                # 【司令塔】ルーティング・エントリポイント
-├── renderer.tsx             # 【共通の額縁】HTML基盤・SEO・Tailwind Config
+├── index.tsx                # 【トップ】ルーティング・エントリポイント (Checkout /api 等の口も定義)
+├── renderer.tsx             # 【共通】HTML基盤・SEO・Tailwind
 ├── style.css                # 【外観】基本のリセット・フォント・共通変数
 │
 ├── pages/                   # 【ページ構成】各画面のレイアウトとデータ統合
 │   ├── Top.tsx              # ランディングページ
-│   ├── Services.tsx         # 予約システムメイン
-│   └── (Success.tsx 等)      # 決済完了後などの専用ページ
+│   ├── Services.tsx         # 予約システムメイン（入口）
+│   ├── Checkout.tsx         # 【重要】確認画面の頂点。決済 or 相談の分岐司令塔
+│   └── Success.tsx          # 決済完了後・送信完了後のサンクスページ
 │
 ├── components/              # 【UI部品】
-│   ├── Layout/              # 共通：全画面で共有する枠組み（Header, Footer等）
-│   ├── Booking/             # 特化：予約フロー専用（Calendar, Slots, Plans等）
-│   ├── Payment/             # 特化：決済UI専用（CheckoutButton, PriceSummary等）
-│   └── UI/                  # 原子：ボタン、バッジ、入力欄など最小単位の汎用部品
+│   ├── Layout/              # 全画面共通（Header, Footer等）
+│   ├── Booking/             # 予約フロー専用
+│   │   ├── Calendar/        # カレンダー関連部品
+│   │   ├── Slots/           # 時間枠選択部品
+│   │   ├── Plans/           # サービスプラン選択部品
+│   │   └── CheckoutPreview.tsx # 【新設】選択された日時・プランの最終確認表示
+│   ├── Payment/             # 決済・コンタクトUI専用
+│   │   ├── StripeEmbedded.tsx  # [開発中] Stripe Elements/Checkoutの埋め込みUI
+│   │   ├── CheckoutButton.tsx  # Stripe決済開始トリガー
+│   │   └── ContactForm.tsx     # 【新設】要相談時専用の入力フォーム
+│   └── UI/                  # 原子：ボタン、バッジ、入力欄など最小単位
 │
 ├── lib/                     # 【共有ロジック】
 │   ├── calendar-logic.ts    # カレンダー計算
 │   ├── slot-logic.ts        # 予約枠・在庫計算
-│   └── stripe-server.ts     # サーバーサイド決済処理（Webhook検証等）
+│   ├── stripe-server.ts     # サーバーサイド決済処理（Secret Key使用、Webhook等）
+│   └── mail-server.ts       # [予定] 相談メール送信ロジック
 │
 ├── client/                  # 【ブラウザ側ロジック】ViteでビルドされるJS
-│   └── stripe-client.ts     # Stripe Elements 等のフロント端処理
+│   ├── stripe-client.ts     # Stripe.jsの初期化、Frontendでの決済ハンドリング
+│   └── form-handler.ts      # コンタクトフォームのバリデーション等
 │
 ├── db/                      # 【データアクセス】
 │   ├── schema.sql           # D1テーブル定義
 │   ├── queries.ts           # SQL文の一括管理
-│   ├── repositories/        # 関数化されたDB操作（booking-db.ts 等を格納）
+│   ├── repositories/        # 関数化されたDB操作
 │   └── seeds/               # テスト・初期データ
 │
-├── constants/               # 【静的定義】価格、サービス名、★デザイン定数
+├── constants/               # 【静的定義】価格、サービス名、デザイン定数
 └── _sandbox/                # 【検証エリア】実験場・単体テスト
 ~~~
 
