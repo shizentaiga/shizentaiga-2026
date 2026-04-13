@@ -11,6 +11,7 @@ import { serveStatic } from 'hono/serve-static'
 import { renderer } from './renderer' 
 import { Top } from './pages/Top'     
 import { Legal } from './pages/Legal' 
+import { ErrorPage } from './pages/Error'
 
 /* --- 🧱 UI COMPONENTS & PAGES --- */
 import { Services } from './pages/Services'
@@ -77,6 +78,16 @@ app.get('/services/checkout', (c) => {
   const date = c.req.query('date')
   const slot = c.req.query('slot')
   return c.render(<Checkout planId={plan} date={date} slot={slot} />)
+})
+
+/**
+ * [Error Page] /error
+ * 汎用エラー画面
+ */
+app.get('/error', (c) => {
+  return c.render(<ErrorPage />, {
+    title: 'Error | お手数ですが再度お試しください',
+  })
 })
 
 /* --- 2. API / DYNAMIC FRAGMENTS (HTMX Endpoints) --- */

@@ -3,14 +3,10 @@
  * * ■ 動作チェック手順
  * 1. ローカルサーバー起動: `npm run dev`
  * 2. アクセスURL: http://localhost:5173/_debug/
- * ※ 各テストへの直通パス：
- * - 疎通確認: /_debug/test01
- * - DB接続確認: /_debug/test02
- * - DBデータ閲覧: /_debug/test03
- * - スクリプト検証: /_debug/test04
+ * ※ 各テストへの直通パス：(末尾の数字を変更して利用)
+ * /_debug/testxx
  * * ■ 運用方針
- * 本番環境への影響を「ゼロ」にするため、新しい検証を行う際は
- * 必ず `./tests/` 内に新規ファイルを作成し、本ファイルにルーティングを追記すること。
+ * 本番環境への影響を考慮し、本ファイルにルーティングを追記してテストする。
  */
 
 import { Hono } from 'hono';
@@ -26,6 +22,7 @@ import { test09} from './tests/09_reserve';
 import { test10} from './tests/10_db_plan';
 import { test11} from './tests/11_date';
 import { test12} from './tests/12_calendar';
+import { test13} from './tests/13_routing';
 
 export const sandboxRouter = new Hono();
 
@@ -42,6 +39,7 @@ sandboxRouter.route('/test09', test09);
 sandboxRouter.route('/test10', test10);
 sandboxRouter.route('/test11', test11);
 sandboxRouter.route('/test12', test12);
+sandboxRouter.route('/test13', test13);
 
 // サンドボックスのトップページ（/_debug/）
 sandboxRouter.get('/', (c) => c.text("Sandbox Router is active."));
