@@ -1,27 +1,29 @@
 /**
  * @file BookingFooter.tsx
  * @description 予約フローの最終確定を行う固定フッターコンポーネント。
- * 金額の動的表示、プランに応じた遷移先(Checkout/Contact)の切り替えロジックを含みます。
+ * [v4.0 統合モデル]
+ * - プランに応じた金額の動的表示 (¥表示 vs 要相談)
+ * - カレンダーの属性ベース(data-selected)の日付取得に対応
+ * - カスタムイベント selectionChange によるカレンダー連動の強化
+ * - 通常予約（Checkout）と相談（Contact）の分岐処理
  */
 
 import { html } from 'hono/html'
 
-/**
- * BookingFooter コンポーネント
- */
 export const BookingFooter = () => html`
-  <div class="fixed bottom-0 w-full bg-white/95 backdrop-blur-md py-6 border-t border-gray-200 z-100">
+  <div class="fixed bottom-0 w-full bg-white/95 backdrop-blur-md py-6 border-t border-gray-200 z-50">
     <div class="max-w-3xl mx-auto px-6 flex justify-between items-center">
       <div class="summary">
-        <div class="text-[11px] text-gray-600 font-bold mb-1 uppercase tracking-tighter">Current Plan</div>
-        <div id="display-price" class="text-xl md:text-2xl font-bold text-gray-900">
+        <div class="text-[11px] text-gray-600 font-bold mb-1 uppercase tracking-tighter">Selected Plan Price</div>
+        <div id="display-price" class="text-xl md:text-2xl font-bold text-gray-900 transition-all duration-300">
           <span class="text-xs mr-1 font-normal opacity-40">JPY</span>--
         </div>
       </div>
       
       <button id="final-booking-button" 
           type="button"
-          class="bg-black text-white py-4 px-8 md:px-14 text-[11px] font-bold rounded-sm tracking-[0.2em] uppercase hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all flex items-center group">
+          disabled
+          class="bg-black text-white py-4 px-8 md:px-14 text-[11px] font-bold rounded-sm tracking-[0.2em] uppercase hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-all flex items-center group">
         <span id="button-text">Select a Plan</span>
         <i class="fa-solid fa-arrow-right ml-4 transform group-hover:translate-x-1 transition-transform"></i>
       </button>
@@ -30,57 +32,76 @@ export const BookingFooter = () => html`
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      const planCards = document.querySelectorAll('.plan-card');
-      const calendarContainer = document.getElementById('calendar-container');
+      // 要素の取得
       const priceDisplay = document.getElementById('display-price');
       const bookingButton = document.getElementById('final-booking-button');
       const buttonText = document.getElementById('button-text');
+      const calendarContainer = document.getElementById('calendar-container');
 
-      // 遷移先URLを保持する変数
       let currentTargetUrl = '';
 
+      /**
+       * 1. 状態の同期（メインロジック）
+       * プラン選択状況とスロット選択状況を読み取り、UIを更新します。
+       */
       function syncSelection() {
         const selectedCard = document.querySelector('.plan-card[data-selected="true"]');
         if (!selectedCard) return;
 
-        // データ属性の取得
         const planId = selectedCard.dataset.planId;
         const price = selectedCard.dataset.price;
-        const isRetainer = selectedCard.dataset.isConsulting === 'true';
+        const isConsulting = selectedCard.dataset.isConsulting === 'true';
 
-        // 1. 金額表示の更新
-        if (isRetainer) {
-          priceDisplay.innerHTML = '要相談';
+        // --- A. 価格表示の更新 ---
+        if (isConsulting || price === '0') {
+          priceDisplay.innerHTML = '<span class="text-sm font-bold">要相談</span>';
         } else {
-          // JSのテンプレートリテラル内なので、Honoと競合しないよう、うまくエスケープ
           priceDisplay.innerHTML = \`<span class="text-xs mr-1 font-normal opacity-40">JPY</span>\${Number(price).toLocaleString()}\`;
         }
 
-        // 2. カレンダーの表示制御
+        // --- B. カレンダーの表示制御 ---
         if (calendarContainer) {
-          calendarContainer.style.display = isRetainer ? 'none' : 'block';
+          calendarContainer.style.display = isConsulting ? 'none' : 'block';
         }
 
-        // 3. ボタンテキストの更新
-        if (isRetainer) {
-          buttonText.textContent = 'Inquiry (Consultation)';
-          currentTargetUrl = '/contact?plan=' + planId;
+        // --- C. ボタンと遷移先の更新 ---
+        if (isConsulting) {
+          // 【相談ケース】カレンダー不要で即座に問い合わせへ
+          buttonText.textContent = 'Contact for Consultation';
+          currentTargetUrl = \`/contact?plan=\${planId}\`;
           enableButton();
         } else {
-          buttonText.textContent = 'Book Now';
+          // 【通常ケース】スロットの選択状態を確認
           updateBookingUrl(planId);
         }
       }
 
+      /**
+       * 2. 予約URLの組み立て
+       * 修正：カレンダーのセルから data-selected="true" を探すように変更
+       */
       function updateBookingUrl(planId) {
-        const selectedSlot = document.querySelector('.calendar-day-cell[data-selected="true"]');
-        if (selectedSlot) {
-          const slotDate = selectedSlot.dataset.date;
-          const slotId = selectedSlot.dataset.slotId;
-          currentTargetUrl = \`/api/checkout?plan=\${planId}&date=\${slotDate}&slot=\${slotId}\`;
+        // SlotList.tsx のラジオボタン
+        const selectedRadio = document.querySelector('input[name="slot_id"]:checked');
+        
+        // CalendarSection.tsx の選択済みセル（属性ベース）
+        const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
+
+        if (selectedRadio && selectedCell) {
+          const unix = selectedRadio.value;
+          const date = selectedCell.getAttribute('data-date');
+          
+          currentTargetUrl = \`/api/checkout?plan=\${planId}&date=\${date}&slot=\${unix}\`;
+          buttonText.textContent = 'Book Now';
           enableButton();
         } else {
           currentTargetUrl = '';
+          // ガイドテキストの更新
+          if (!selectedCell) {
+            buttonText.textContent = 'Select Date';
+          } else if (!selectedRadio) {
+            buttonText.textContent = 'Select Time';
+          }
           disableButton();
         }
       }
@@ -92,34 +113,40 @@ export const BookingFooter = () => html`
 
       function disableButton() {
         bookingButton.disabled = true;
-        bookingButton.classList.add('opacity-50');
       }
 
-      // 4. クリック時の遷移処理（二重クリック防止策 v1.2準拠）
+      /**
+       * 3. イベント監視（デリゲーション & カスタムイベント）
+       */
+      // プラン変更やスロット選択を監視
+      document.addEventListener('change', (e) => {
+        if (e.target.name === 'plan_id' || e.target.name === 'slot_id') {
+          // プランカードの data-selected を手動更新（スタイリング同期）
+          if (e.target.name === 'plan_id') {
+            document.querySelectorAll('.plan-card').forEach(card => {
+              card.dataset.selected = (card.dataset.planId === e.target.value) ? 'true' : 'false';
+            });
+          }
+          syncSelection();
+        }
+      });
+
+      // カレンダーの日付クリック（CalendarSectionからの通知）を監視
+      document.addEventListener('selectionChange', () => {
+        syncSelection();
+      });
+
+      // ボタンクリック時の処理（二重送信防止）
       bookingButton.addEventListener('click', () => {
         if (!currentTargetUrl || bookingButton.disabled) return;
         
-        // ボタンを無効化して連打を防ぐ
         bookingButton.disabled = true;
         bookingButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Processing...';
         
-        // 遷移実行
         window.location.href = currentTargetUrl;
       });
 
-      planCards.forEach(card => {
-        card.addEventListener('click', () => {
-          planCards.forEach(c => c.dataset.selected = 'false');
-          card.dataset.selected = 'true';
-          syncSelection();
-        });
-      });
-
-      document.addEventListener('selectionChange', () => {
-        const selectedCard = document.querySelector('.plan-card[data-selected="true"]');
-        if (selectedCard) updateBookingUrl(selectedCard.dataset.planId);
-      });
-
+      // 初期実行
       syncSelection();
     });
   </script>

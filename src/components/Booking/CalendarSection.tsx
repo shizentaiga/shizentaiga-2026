@@ -95,6 +95,8 @@ export const CalendarSection = (
                     this.classList.remove('bg-white');
                     this.classList.add('bg-blue-50', 'shadow-[inset_0_0_0_2px_#2c5282]', 'z-10');
                     this.setAttribute('data-selected', 'true');
+
+                    document.dispatchEvent(new Event('selectionChange', { bubbles: true }));
                    "
               >
                 
