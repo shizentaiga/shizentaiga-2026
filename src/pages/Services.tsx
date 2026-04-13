@@ -1,9 +1,12 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレンダラー（v3.5 監査指摘反映・鉄壁モデル）。
- * * [監査反映] 
+ * @description サービス予約ページのメインレンダラー（v3.7 予約フロー・ステート連携モデル）。
+ * * [監査反映済み] 
  * A. 日付選択時に `data-selected` 属性を動的に付け替え、プラン変更時の再送ロジックを確立。
  * B. スクリプト全体を `window.load` で保護し、HTMX未定義エラーを防止。
+ * * [デバッグ強化]
+ * - 予約枠（チップス）選択時に `TIME (start_at_unix)` をモニターに反映。
+ * - 選択状態を監視し、プラン・日付・時間の「3点セット」が揃う流れを可視化。
  */
 
 import { html } from 'hono/html'
@@ -38,7 +41,6 @@ const ClientScript = () => html`
   <script>
     /**
      * [監査B対応] 鉄壁のロード保護
-     * 全てのDOMおよび外部スクリプト(HTMX)がロードされた後に初期化。
      */
     window.addEventListener('load', function() {
 
@@ -50,29 +52,44 @@ const ClientScript = () => html`
       /* --- [デバッグ終了] --- */
 
       /**
-       * プラン変更時の処理
+       * 1. 状態変更監視 (changeイベント)
+       * プランの選択、および予約枠(SlotList)の選択をキャッチします。
        */
       document.addEventListener('change', function(e) {
-        if (e.target && e.target.name === 'plan_id') {
+        if (!e.target) return;
+
+        // A. プラン変更時の処理
+        if (e.target.name === 'plan_id') {
           const selectedPlanId = e.target.value;
 
           /* --- [デバッグ開始] --- */
           updateDebug('debug-plan', selectedPlanId);
           /* --- [デバッグ終了] --- */
 
-          /**
-           * [監査A対応]
-           * 属性の付け替えが行われているため、querySelectorで「現在の日付」を確実に捕捉可能。
-           */
+          // プランが変わったら時間は未選択に戻るためリセット
+          updateDebug('debug-time', '---');
+
           const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
           if (selectedCell) {
             executeSlotRequest(selectedCell.getAttribute('data-date'), selectedPlanId);
           }
         }
+
+        // B. 予約枠（チップス）変更時の処理
+        if (e.target.name === 'slot_id') {
+          // SlotList側の input[data-time] から表示用時刻を取得、valueからunixスタンプを取得
+          const displayTime = e.target.getAttribute('data-time') || "Selected";
+          const unixTimestamp = e.target.value;
+
+          /* --- [デバッグ開始] --- */
+          // 表示用モニターには時刻を、内部データとしてunixが取れていることを確認
+          updateDebug('debug-time', displayTime + ' (' + unixTimestamp + ')');
+          /* --- [デバッグ終了] --- */
+        }
       });
 
       /**
-       * カレンダーの日付クリック監視
+       * 2. カレンダーの日付クリック監視
        */
       document.addEventListener('click', function(e) {
         const cell = e.target.closest('.calendar-day-cell');
@@ -80,15 +97,13 @@ const ClientScript = () => html`
           const date = cell.getAttribute('data-date');
           const planId = document.querySelector('input[name="plan_id"]:checked')?.value;
 
-          /**
-           * [監査A対応] 属性の付け替えロジック
-           * 他の全セルの選択を解除し、クリックされたセルのみを「真」にする。
-           */
+          /* --- [監査A対応] 属性の付け替え --- */
           document.querySelectorAll('.calendar-day-cell').forEach(el => el.setAttribute('data-selected', 'false'));
           cell.setAttribute('data-selected', 'true');
 
           /* --- [デバッグ開始] --- */
           updateDebug('debug-date', date);
+          updateDebug('debug-time', '---'); // 日付が変わったら時間はリセット
           /* --- [デバッグ終了] --- */
 
           executeSlotRequest(date, planId);
@@ -96,7 +111,7 @@ const ClientScript = () => html`
       });
 
       /**
-       * スロット取得リクエストの実行
+       * 3. スロット取得リクエスト (HTMX)
        */
       function executeSlotRequest(date, planId) {
         if (!date || !planId) return;
@@ -105,10 +120,6 @@ const ClientScript = () => html`
         updateDebug('debug-htmx', 'Fetching...');
         /* --- [デバッグ終了] --- */
 
-        /**
-         * [監査B対応] 
-         * ロードイベント内かつグローバルチェックを行い、htmx.ajaxを実行。
-         */
         if (window.htmx) {
           htmx.ajax('GET', '/services/slots', {
             values: { date, plan_id: planId },
@@ -117,6 +128,9 @@ const ClientScript = () => html`
         }
       }
 
+      /**
+       * 4. 通信状態監視
+       */
       document.body.addEventListener('htmx:responseError', function(evt) {
         document.getElementById('error-display')?.classList.remove('hidden');
       });
@@ -142,6 +156,7 @@ const DebugMonitor = () => html`
     <div class="space-y-1">
       <p>PLAN_ID : <span id="debug-plan" class="text-yellow-400">---</span></p>
       <p>DATE    : <span id="debug-date" class="text-yellow-400">---</span></p>
+      <p>TIME    : <span id="debug-time" class="text-pink-400">---</span></p>
       <p>NETWORK : <span id="debug-htmx" class="text-blue-400">Idle</span></p>
     </div>
   </div>
@@ -202,7 +217,7 @@ const PageLayout = async (props: {
 
     ${BookingFooter()}
     ${ClientScript()}
-    ${DebugMonitor() /* 不要になったらここを消すだけ */}
+    ${DebugMonitor()}
   </body>
 `;
 
