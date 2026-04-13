@@ -1,10 +1,6 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレンダラー。
- * * [Programmer Note: 技術スタックの注意点]
- * 1. 物理隔離: BUSINESS_INFO.shopName を使用し、他店舗データの混入を防止します。
- * 2. CDN依存: 現在 unpkg(HTMX) / Tailwindを使用。商用時はセルフホストへの移行を推奨。
- * 3. 日付処理: Dateオブジェクトの「0開始月」等の混乱を避けるため、date-fnsを採用。
+ * @description サービス予約ページのメインレンダラー（v3.4 デバッグモニタ搭載モデル）。
  */
 
 import { html } from 'hono/html'
@@ -24,114 +20,188 @@ import { ConsultantSection } from '../components/Layout/ConsultantSection'
 import { BookingFooter } from '../components/Booking/BookingFooter'
 import { SlotList } from '../components/Booking/SlotList'
 
-export const Services = async (c: Context) => {
-  /* --- 🛠️ SERVER LOGIC (Programmer Area) --- */
-  
-  // 基準時刻の取得（注: new Date() はSSR実行時のサーバー時刻を取得）
-  const currentDate = new Date();
-  const calendarDays = generateCalendarData(currentDate);
-  
-  /**
-   * 1. 店舗に紐づくプラン一覧の取得
-   * info.ts の shopName ("善幽") を渡し、該当店舗の active なプランのみを抽出します。
-   */
-  const displayPlans = await getPlansFromDB(c, BUSINESS_INFO.shopName);
-  const defaultPlanId = displayPlans[0]?.plan_id || "";
+/* --- 📄 STATIC STRINGS --- */
+const UI_TEXT = {
+  TITLE: "Service Booking",
+  SUB_TITLE: "PRIVATE CONSULTATION",
+  STEP_PLAN: "01. Select Plan",
+  ERROR_FETCH: "データの取得中にエラーが発生しました。通信環境を確認し、ページをリロードしてください。"
+};
 
-  /**
-   * 2. 稼働状況（チップ）の取得
-   * DBから「予約可能なチップ」を取得し、カレンダーの空き状況ドットに使用します。
-   */
-  const rawChips = await getAvailableChipsFromDB(c);
+/**
+ * クライアントサイド・スクリプト
+ */
+const ClientScript = () => html`
+  <script>
+    /* --- [デバッグ開始] 監視ヘルパー --- */
+    function updateDebug(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.innerText = val;
+    }
+    /* --- [デバッグ終了] --- */
+
+    /**
+     * プラン変更時の処理
+     */
+    document.addEventListener('change', function(e) {
+      if (e.target && e.target.name === 'plan_id') {
+        const selectedPlanId = e.target.value;
+
+        /* --- [デバッグ開始] --- */
+        updateDebug('debug-plan', selectedPlanId);
+        /* --- [デバッグ終了] --- */
+
+        const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
+        if (selectedCell) {
+          executeSlotRequest(selectedCell.getAttribute('data-date'), selectedPlanId);
+        }
+      }
+    });
+
+    /**
+     * カレンダーの日付クリック監視（HTMX通信とデバッグ表示）
+     */
+    document.addEventListener('click', function(e) {
+      const cell = e.target.closest('.calendar-day-cell');
+      if (cell) {
+        const date = cell.getAttribute('data-date');
+        const planId = document.querySelector('input[name="plan_id"]:checked')?.value;
+
+        /* --- [デバッグ開始] --- */
+        updateDebug('debug-date', date);
+        /* --- [デバッグ終了] --- */
+
+        executeSlotRequest(date, planId);
+      }
+    });
+
+    /**
+     * スロット取得リクエストの実行
+     */
+    function executeSlotRequest(date, planId) {
+      if (!date || !planId) return;
+
+      /* --- [デバッグ開始] --- */
+      updateDebug('debug-htmx', 'Fetching...');
+      /* --- [デバッグ終了] --- */
+
+      htmx.ajax('GET', '/services/slots', {
+        values: { date, plan_id: planId },
+        target: '#slot-list-container'
+      });
+    }
+
+    document.body.addEventListener('htmx:responseError', function(evt) {
+      document.getElementById('error-display')?.classList.remove('hidden');
+    });
+
+    document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+      if (evt.detail.target.id === 'slot-list-container') {
+         document.getElementById('error-display')?.classList.add('hidden');
+         /* --- [デバッグ開始] --- */
+         updateDebug('debug-htmx', 'Idle');
+         /* --- [デバッグ終了] --- */
+      }
+    });
+  </script>
+`;
+
+/**
+ * 【Debug Area】監視モニターコンポーネント
+ */
+const DebugMonitor = () => html`
+  <div id="debug-monitor" class="fixed bottom-4 left-4 z-50 bg-black/85 text-[9px] font-mono text-green-400 p-3 rounded-sm border border-green-500/30 w-64 shadow-2xl pointer-events-none">
+    <p class="border-b border-green-500/30 mb-2 pb-1 text-white font-bold tracking-tighter">SYSTEM_STATE_MONITOR</p>
+    <div class="space-y-1">
+      <p>PLAN_ID : <span id="debug-plan" class="text-yellow-400">---</span></p>
+      <p>DATE    : <span id="debug-date" class="text-yellow-400">---</span></p>
+      <p>NETWORK : <span id="debug-htmx" class="text-blue-400">Idle</span></p>
+    </div>
+  </div>
+  `;
+
+/**
+ * 【Designer Area】メインレイアウト・テンプレート
+ */
+const PageLayout = async (props: {
+  ctx: Context,
+  displayPlans: any[],
+  calendarDays: any[],
+  availableDates: { date: string }[],
+  firstAvailableDate: string,
+  defaultPlanId: string,
+  baseYear: number,
+  baseMonth: number
+}) => html`
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+  <body class="bg-gray-50 text-gray-800 leading-relaxed pb-40">
+    
+    <header class="bg-white py-12 text-center border-b border-gray-100">
+      <h1 class="text-xl font-medium tracking-[0.2em] uppercase text-gray-900">${UI_TEXT.TITLE}</h1>
+      <p class="text-[10px] text-gray-600 mt-2 tracking-widest">${UI_TEXT.SUB_TITLE}</p>
+    </header>
+
+    <div class="max-w-3xl mx-auto p-6">
+      
+      <section class="mb-12">
+        <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">${UI_TEXT.STEP_PLAN}</h2>
+        <div id="plan-selection-area">
+          ${ServicePlanList(props.displayPlans)}
+        </div>
+      </section>
+
+      <div id="calendar-container" class="mb-12">
+        ${CalendarSection(
+          props.calendarDays, 
+          props.availableDates, 
+          props.firstAvailableDate, 
+          props.baseYear, 
+          props.baseMonth
+        )}
+      </div>
+
+      <div id="slot-list-container" class="mb-12">
+        ${await SlotList(props.ctx, props.firstAvailableDate, props.defaultPlanId)}
+      </div>
+
+      <div id="error-display" class="hidden mb-12 p-4 bg-red-50 text-red-500 text-[10px] rounded-sm text-center tracking-widest">
+        ${UI_TEXT.ERROR_FETCH}
+      </div>
+
+      ${ConsultantSection()}
+    </div>
+
+    ${BookingFooter()}
+    ${ClientScript()}
+    ${DebugMonitor() /* ← [デバッグ開始/終了] 不要になったらここを消すだけ */}
+  </body>
+`;
+
+/**
+ * 【Programmer Area】メインエントリーポイント
+ */
+export const Services = async (c: Context) => {
+  const currentDate = new Date();
+
+  const [displayPlans, rawChips] = await Promise.all([
+    getPlansFromDB(c, BUSINESS_INFO.shopName),
+    getAvailableChipsFromDB(c)
+  ]);
+
+  const defaultPlanId = displayPlans[0]?.plan_id || "";
   const availableDates = rawChips.map(chip => ({ date: chip.date_string }));
   const firstAvailableDate = availableDates[0]?.date || "";
 
-  /**
-   * 3. 日付表示用の計算
-   * date-fnsを使用することで、JS標準の「月+1が必要」という落とし穴を回避。
-   */
-  const baseYear = parseInt(format(currentDate, 'yyyy'));
-  const baseMonth = parseInt(format(currentDate, 'MM'));
-
-  /* --- 🎨 VIEW / DESIGN (Designer Area) --- */
-  return html`
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-
-    <body class="bg-gray-50 text-gray-800 leading-relaxed pb-40">
-      
-      <header class="bg-white py-12 text-center border-b border-gray-100">
-        <h1 class="text-xl font-medium tracking-[0.2em] uppercase text-gray-900">Service Booking</h1>
-        <p class="text-[10px] text-gray-600 mt-2 tracking-widest">PRIVATE CONSULTATION</p>
-      </header>
-
-      <div class="max-w-3xl mx-auto p-6">
-        
-        <section class="mb-12">
-          <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">01. Select Plan</h2>
-          <div id="plan-selection-area">
-            ${ServicePlanList(displayPlans)}
-          </div>
-        </section>
-
-        <div id="calendar-container" class="mb-12">
-          ${CalendarSection(
-            calendarDays, 
-            availableDates, 
-            firstAvailableDate, 
-            baseYear, 
-            baseMonth
-          )}
-        </div>
-
-        <div id="slot-list-container" class="mb-12">
-          ${await SlotList(c, firstAvailableDate, defaultPlanId)}
-        </div>
-
-        <div id="error-display" class="hidden mb-12 p-4 bg-red-50 text-red-500 text-[10px] rounded-sm text-center tracking-widest">
-          データの取得中にエラーが発生しました。通信環境を確認し、ページをリロードしてください。
-        </div>
-
-        ${ConsultantSection()}
-      </div>
-
-      ${BookingFooter()}
-
-      <script>
-        /**
-         * [Programmer Note] イベントリスナー
-         * プラン変更時にHTMXを使用してスロット表示(#slot-list-container)を非同期更新。
-         */
-        document.addEventListener('change', function(e) {
-          if (e.target && e.target.name === 'plan_id') {
-            const selectedPlanId = e.target.value;
-            const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
-            
-            if (selectedCell) {
-              htmx.ajax('GET', '/services/slots', {
-                values: { 
-                  date: selectedCell.getAttribute('data-date'),
-                  plan_id: selectedPlanId 
-                },
-                target: '#slot-list-container'
-              });
-            }
-          }
-        });
-
-        /**
-         * HTMXエラーハンドリング
-         */
-        document.body.addEventListener('htmx:responseError', function(evt) {
-          document.getElementById('error-display')?.classList.remove('hidden');
-        });
-
-        document.body.addEventListener('htmx:afterOnLoad', function(evt) {
-          if (evt.detail.target.id === 'slot-list-container') {
-             document.getElementById('error-display')?.classList.add('hidden');
-          }
-        });
-      </script>
-    </body>
-  `
+  return PageLayout({
+    ctx: c,
+    displayPlans,
+    calendarDays: generateCalendarData(currentDate),
+    availableDates,
+    firstAvailableDate,
+    defaultPlanId,
+    baseYear: parseInt(format(currentDate, 'yyyy')),
+    baseMonth: parseInt(format(currentDate, 'MM'))
+  });
 }
