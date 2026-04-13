@@ -6,11 +6,16 @@
  */
 
 export const BUSINESS_INFO = {
+  /**
+   * システム識別・隔離設定
+   * v3.2 多店舗展開プロトコルに基づき、特定のショップ情報を隔離するための識別子です。
+   * getPlansFromDB(c, shopName) 等の引数として使用され、他店舗データの混入を物理的に防ぎます。
+   * 公式HP（本サイト）では「善幽」の入力を必須として運用します。
+   */
+  shopName: "善幽",
+
   // 予約可能枠（手動更新セクション）：DBから読み込む処理に変更(2026/04/11)
-  // availableSlots: [
-  //   { date: "2026-04-08", time: "10:00 - 13:00", status: "available" },
-  //   { date: "2026-04-30", time: "10:00 - 13:00", status: "available" },
-  // ],
+  // availableSlots: [ ... ],
 
   // 基本情報
   brandName: "清善 泰賀 | Taiga Shizen Official",
@@ -34,36 +39,7 @@ export const BUSINESS_INFO = {
 
   // サービスプラン設定：DBから読み込む処理に変更(2026/04/11)
   // Services.tsx でループ処理するために配列形式で定義
-  // v2.7 DBカラム名およびシードデータIDと完全一致させています
-  // services: [
-  //   {
-  //     plan_id: "pln_consulting",
-  //     plan_name: "経営コンサルティング",
-  //     duration_min: 90,
-  //     price_amount: 49500,
-  //     description: "課題解決に向けた90分の戦略セッション",
-  //     taxIncluded: true,
-  //     suffix: "分"
-  //   },
-  //   {
-  //     plan_id: "pln_funding",
-  //     plan_name: "資金調達プラン 初回相談",
-  //     duration_min: 60,
-  //     price_amount: 11000,
-  //     description: "融資・資金繰りに関する専門的なアドバイス",
-  //     taxIncluded: true,
-  //     suffix: "分"
-  //   },
-  //   {
-  //     plan_id: "pln_advisor",
-  //     plan_name: "顧問契約プラン",
-  //     duration_min: 0, // 期間が可変のためフラグ値として0を設定
-  //     price_amount: 220000,
-  //     description: "継続的な伴走支援により、組織の構造的課題を解決",
-  //     taxIncluded: true,
-  //     suffix: "1ヶ月〜"
-  //   }
-  // ],
+  // services: [ ... ],
 
   // 法務・ポリシー関連の定型文
   policies: {
@@ -86,8 +62,8 @@ export const BUSINESS_INFO = {
 
 /**
  * 💡 メンテナンス・マニュアル
- * * 1. 予約枠の更新: availableSlots 配列の中身を書き換えて Push してください。
- * 2. メールの変更: BUSINESS_INFO.email を書き換えてください。
- * 3. 価格の変更: BUSINESS_INFO.services 内の price を変更してください。
+ * * 1. ショップ識別: BUSINESS_INFO.shopName は、DB(shops.shop_name)と完全一致させてください。
+ * 2. 予約枠の更新: DB(staff_schedules)側を更新してください。
+ * 3. メールの変更: BUSINESS_INFO.email を書き換えてください。
  * 4. 所在地の開示: 実際に住所を記載する場合は、address の文字列を書き換えてください。
  */

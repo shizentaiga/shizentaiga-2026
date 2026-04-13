@@ -24,9 +24,6 @@ export interface AvailableChip {
   start_at_unix: number;
   date_string: string;
   grid_size_min: number; 
-  // 以下を追加（? をつけることで、存在しなくてもエラーにならなくなります）
-  // slot_id?: string;
-  // booking_status?: string;
 }
 
 /**
@@ -89,12 +86,3 @@ export const getAvailableChipsFromDB = async (
     return [];
   }
 };
-
-/**
- * 本番ビルドエラー対策: 
- * ビルドログで参照されていた getAvailableSlotsFromDB という名前が必要な場合、
- * 既存のロジックとの互換性のためにエイリアスとしてエクスポートするか、
- * あるいはここでスロット計算ロジックを実装した関数を定義してください。
- * (ここでは一旦、チップ取得関数を別名で公開する例を記載します)
- */
-// export const getAvailableSlotsFromDB = getAvailableChipsFromDB;

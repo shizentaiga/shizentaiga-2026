@@ -34,38 +34,36 @@
 ~~~
 src/
 ├── index.tsx                # 【司令塔】ルーティング・エントリポイント
-├── renderer.tsx             # 【共通の額縁】HTML基盤・SEO・外部資産管理
-├── style.css                # 【外観】共通デザイン（Tailwind/独自クラス）
+├── renderer.tsx             # 【共通の額縁】HTML基盤・SEO・Tailwind Config
+├── style.css                # 【外観】基本のリセット・フォント・共通変数
 │
-├── pages/                   # 【ページレイアウト】各画面の構成・データ統合
-│   ├── Top.tsx
-│   ├── Services.tsx         # サービス一覧・予約メイン（SSR/HTMX統合）
-│   └── (Legal.tsx 等)
+├── pages/                   # 【ページ構成】各画面のレイアウトとデータ統合
+│   ├── Top.tsx              # ランディングページ
+│   ├── Services.tsx         # 予約システムメイン
+│   └── (Success.tsx 等)      # 決済完了後などの専用ページ
 │
-├── components/              # 【UI部品】再利用可能な純粋コンポーネント
-│   ├── Booking/             # 予約フロー（CalendarSection, SlotList, PlanCard 等）
-│   ├── Layout/              # 共通パーツ（Footer, ConsultantSection 等）
-│   └── Stripe/              # ★今後追加：決済・Checkout関連コンポーネント
+├── components/              # 【UI部品】
+│   ├── Layout/              # 共通：全画面で共有する枠組み（Header, Footer等）
+│   ├── Booking/             # 特化：予約フロー専用（Calendar, Slots, Plans等）
+│   ├── Payment/             # 特化：決済UI専用（CheckoutButton, PriceSummary等）
+│   └── UI/                  # 原子：ボタン、バッジ、入力欄など最小単位の汎用部品
 │
-├── lib/                     # 【共有ロジック】計算・外部API連携の純粋関数
-│   ├── calendar-logic.ts    # カレンダーの日付・曜日計算（date-fns活用）
-│   ├── slot-logic.ts        # ★重要：予約枠確保・Expire判定アルゴリズム
-│   └── stripe.ts            # Stripe Checkout 連携・署名検証ロジック
+├── lib/                     # 【共有ロジック】
+│   ├── calendar-logic.ts    # カレンダー計算
+│   ├── slot-logic.ts        # 予約枠・在庫計算
+│   └── stripe-server.ts     # サーバーサイド決済処理（Webhook検証等）
 │
-├── db/                      # 【データアクセス】D1 永続化層との通信
-│   ├── schema.sql           # テーブル定義
-│   ├── queries.ts           # SQLクエリの集約・管理
-│   ├── seeds/               # 初期データ投入用SQLスクリプト群
-│   └── (booking-db.ts 等)    # 各種DB操作関数
+├── client/                  # 【ブラウザ側ロジック】ViteでビルドされるJS
+│   └── stripe-client.ts     # Stripe Elements 等のフロント端処理
 │
-├── client/                  # 【ブラウザ側ロジック】HTMX外の補完的インタラクション
-│   └── booking-interaction.ts
+├── db/                      # 【データアクセス】
+│   ├── schema.sql           # D1テーブル定義
+│   ├── queries.ts           # SQL文の一括管理
+│   ├── repositories/        # 関数化されたDB操作（booking-db.ts 等を格納）
+│   └── seeds/               # テスト・初期データ
 │
-├── constants/               # 【静的定義】サービス価格・基本マスタデータ
-└── _sandbox/                # 【検証エリア】機能別のサンドボックス・テスト実装群
-
-public/                      # 【静的資産】
-└── (favicon.ico, images 等)  ※ JS処理は原則 HTMX へ移行済み
+├── constants/               # 【静的定義】価格、サービス名、★デザイン定数
+└── _sandbox/                # 【検証エリア】実験場・単体テスト
 ~~~
 
 [!NOTE]
