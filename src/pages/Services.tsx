@@ -1,6 +1,9 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレンダラー（v3.4 デバッグモニタ搭載モデル）。
+ * @description サービス予約ページのメインレンダラー（v3.5 監査指摘反映・鉄壁モデル）。
+ * * [監査反映] 
+ * A. 日付選択時に `data-selected` 属性を動的に付け替え、プラン変更時の再送ロジックを確立。
+ * B. スクリプト全体を `window.load` で保護し、HTMX未定義エラーを防止。
  */
 
 import { html } from 'hono/html'
@@ -33,75 +36,99 @@ const UI_TEXT = {
  */
 const ClientScript = () => html`
   <script>
-    /* --- [デバッグ開始] 監視ヘルパー --- */
-    function updateDebug(id, val) {
-      const el = document.getElementById(id);
-      if (el) el.innerText = val;
-    }
-    /* --- [デバッグ終了] --- */
-
     /**
-     * プラン変更時の処理
+     * [監査B対応] 鉄壁のロード保護
+     * 全てのDOMおよび外部スクリプト(HTMX)がロードされた後に初期化。
      */
-    document.addEventListener('change', function(e) {
-      if (e.target && e.target.name === 'plan_id') {
-        const selectedPlanId = e.target.value;
+    window.addEventListener('load', function() {
 
-        /* --- [デバッグ開始] --- */
-        updateDebug('debug-plan', selectedPlanId);
-        /* --- [デバッグ終了] --- */
-
-        const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
-        if (selectedCell) {
-          executeSlotRequest(selectedCell.getAttribute('data-date'), selectedPlanId);
-        }
+      /* --- [デバッグ開始] 監視ヘルパー --- */
+      function updateDebug(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.innerText = val;
       }
-    });
-
-    /**
-     * カレンダーの日付クリック監視（HTMX通信とデバッグ表示）
-     */
-    document.addEventListener('click', function(e) {
-      const cell = e.target.closest('.calendar-day-cell');
-      if (cell) {
-        const date = cell.getAttribute('data-date');
-        const planId = document.querySelector('input[name="plan_id"]:checked')?.value;
-
-        /* --- [デバッグ開始] --- */
-        updateDebug('debug-date', date);
-        /* --- [デバッグ終了] --- */
-
-        executeSlotRequest(date, planId);
-      }
-    });
-
-    /**
-     * スロット取得リクエストの実行
-     */
-    function executeSlotRequest(date, planId) {
-      if (!date || !planId) return;
-
-      /* --- [デバッグ開始] --- */
-      updateDebug('debug-htmx', 'Fetching...');
       /* --- [デバッグ終了] --- */
 
-      htmx.ajax('GET', '/services/slots', {
-        values: { date, plan_id: planId },
-        target: '#slot-list-container'
+      /**
+       * プラン変更時の処理
+       */
+      document.addEventListener('change', function(e) {
+        if (e.target && e.target.name === 'plan_id') {
+          const selectedPlanId = e.target.value;
+
+          /* --- [デバッグ開始] --- */
+          updateDebug('debug-plan', selectedPlanId);
+          /* --- [デバッグ終了] --- */
+
+          /**
+           * [監査A対応]
+           * 属性の付け替えが行われているため、querySelectorで「現在の日付」を確実に捕捉可能。
+           */
+          const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
+          if (selectedCell) {
+            executeSlotRequest(selectedCell.getAttribute('data-date'), selectedPlanId);
+          }
+        }
       });
-    }
 
-    document.body.addEventListener('htmx:responseError', function(evt) {
-      document.getElementById('error-display')?.classList.remove('hidden');
-    });
+      /**
+       * カレンダーの日付クリック監視
+       */
+      document.addEventListener('click', function(e) {
+        const cell = e.target.closest('.calendar-day-cell');
+        if (cell) {
+          const date = cell.getAttribute('data-date');
+          const planId = document.querySelector('input[name="plan_id"]:checked')?.value;
 
-    document.body.addEventListener('htmx:afterOnLoad', function(evt) {
-      if (evt.detail.target.id === 'slot-list-container') {
-         document.getElementById('error-display')?.classList.add('hidden');
-         /* --- [デバッグ開始] --- */
-         updateDebug('debug-htmx', 'Idle');
-         /* --- [デバッグ終了] --- */
+          /**
+           * [監査A対応] 属性の付け替えロジック
+           * 他の全セルの選択を解除し、クリックされたセルのみを「真」にする。
+           */
+          document.querySelectorAll('.calendar-day-cell').forEach(el => el.setAttribute('data-selected', 'false'));
+          cell.setAttribute('data-selected', 'true');
+
+          /* --- [デバッグ開始] --- */
+          updateDebug('debug-date', date);
+          /* --- [デバッグ終了] --- */
+
+          executeSlotRequest(date, planId);
+        }
+      });
+
+      /**
+       * スロット取得リクエストの実行
+       */
+      function executeSlotRequest(date, planId) {
+        if (!date || !planId) return;
+
+        /* --- [デバッグ開始] --- */
+        updateDebug('debug-htmx', 'Fetching...');
+        /* --- [デバッグ終了] --- */
+
+        /**
+         * [監査B対応] 
+         * ロードイベント内かつグローバルチェックを行い、htmx.ajaxを実行。
+         */
+        if (window.htmx) {
+          htmx.ajax('GET', '/services/slots', {
+            values: { date, plan_id: planId },
+            target: '#slot-list-container'
+          });
+        }
       }
+
+      document.body.addEventListener('htmx:responseError', function(evt) {
+        document.getElementById('error-display')?.classList.remove('hidden');
+      });
+
+      document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+        if (evt.detail.target.id === 'slot-list-container') {
+           document.getElementById('error-display')?.classList.add('hidden');
+           /* --- [デバッグ開始] --- */
+           updateDebug('debug-htmx', 'Idle');
+           /* --- [デバッグ終了] --- */
+        }
+      });
     });
   </script>
 `;
@@ -118,7 +145,7 @@ const DebugMonitor = () => html`
       <p>NETWORK : <span id="debug-htmx" class="text-blue-400">Idle</span></p>
     </div>
   </div>
-  `;
+`;
 
 /**
  * 【Designer Area】メインレイアウト・テンプレート
@@ -175,7 +202,7 @@ const PageLayout = async (props: {
 
     ${BookingFooter()}
     ${ClientScript()}
-    ${DebugMonitor() /* ← [デバッグ開始/終了] 不要になったらここを消すだけ */}
+    ${DebugMonitor() /* 不要になったらここを消すだけ */}
   </body>
 `;
 
