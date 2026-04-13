@@ -11,26 +11,27 @@ import { serveStatic } from 'hono/serve-static'
 import { renderer } from './renderer' 
 import { Top } from './pages/Top'     
 import { Legal } from './pages/Legal' 
-import { Services } from './pages/Services' 
 
-/* --- COMPONENTS (UI Parts) --- */
-// ページの一部（スロット一覧）を動的に更新するためのコンポーネント
+/* --- 🧱 UI COMPONENTS & PAGES --- */
+import { Services } from './pages/Services'
+import { Checkout } from './pages/Checkout'
 import { SlotList } from './components/Booking/SlotList'
 
 const app = new Hono()
 
 /* --- 0. CONFIGURATION & ASSETS --- */
 
-// 静的資産（画像・CSS・外部JS等）の配信パス
+// 1. 静的資産（画像・CSS・外部JS等）の配信パス：⭐️最優先
 // @ts-ignore
 app.use('/static/*', serveStatic({ root: './' }))
+
+// 2. 全ページ共通のHTMLレイアウト（renderer.tsx）を適用：⭐️全ルートの入り口
+app.all('*', renderer)
 
 // サンドボックス（開発・テスト用URL: /_debug）
 import sandboxBridge from './_sandbox/_bridge';
 app.route('/_debug', sandboxBridge);
 
-// 全ページ共通のHTMLレイアウト（renderer.tsx）を適用
-app.all('*', renderer)
 
 /* --- 1. PAGES (Main Routes) --- */
 
@@ -57,33 +58,36 @@ app.get('/legal', (c) => {
 
 /**
  * [Services & Booking] /services
- * 予約システム メインページ（SSR）
+ * メイン予約画面
  */
 app.get('/services', async (c) => {
-  try {
-    const servicesContent = await Services(c);
-    return c.render(servicesContent, { 
-      title: 'Services & Booking | 予約案内', 
-      description: '現在の予約状況をご案内します。カレンダーから日付を選択してください。' 
-    })
-  } catch (error) {
-    console.error("Services Render Error:", error);
-    return c.text("現在、予約システムを一時停止しております。しばらく経ってから再度お試しください。", 500);
-  }
+  const content = await Services(c);
+  return c.render(content, { 
+    title: 'Services & Booking | 予約案内', 
+    description: '現在の予約状況をご案内します。' 
+  })
+})
+
+/**
+ * [Checkout Page] /services/checkout
+ * 予約内容確認画面
+ */
+app.get('/services/checkout', (c) => {
+  const plan = c.req.query('plan') || ''
+  const date = c.req.query('date')
+  const slot = c.req.query('slot')
+  return c.render(<Checkout planId={plan} date={date} slot={slot} />)
 })
 
 /* --- 2. API / DYNAMIC FRAGMENTS (HTMX Endpoints) --- */
 
 /**
  * [Slot Update] /services/slots
- * HTMX用：予約スロットの表示更新（HTML断片のみを返却）
- * [Designer Note] ページ全体の更新ではなく、#slot-list-container の中身だけを書き換えます。
+ * HTMX用：予約スロットの表示更新
  */
 app.get('/services/slots', async (c) => {
   const date = c.req.query('date') || "";
   const planId = c.req.query('plan_id') || "";
-  
-  // SlotListコンポーネント（/components/Booking/SlotList.tsx）を呼び出し
   return c.html(await SlotList(c, date, planId));
 })
 
