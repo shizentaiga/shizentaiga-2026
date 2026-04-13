@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import { html } from 'hono/html'
 // 関数名を Chips に統一（ビルドエラー回避）
-import { getAvailableChipsFromDB } from '../../db/booking-db'
+import { getAvailableChipsFromDB } from '../../db/repositories/booking-db'
 
 type Bindings = {
   shizentaiga_db: D1Database;

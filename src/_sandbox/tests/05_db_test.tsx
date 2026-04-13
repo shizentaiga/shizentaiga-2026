@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import { html } from 'hono/html';
-import { getAvailableChipsFromDB } from '../../db/booking-db';
+import { getAvailableChipsFromDB } from '../../db/repositories/booking-db';
 
 type Bindings = {
   shizentaiga_db: D1Database;

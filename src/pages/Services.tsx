@@ -16,8 +16,8 @@ import { BUSINESS_INFO } from '../constants/info'
 
 /* --- ⚙️ LOGIC & DATA ACCESS --- */
 import { generateCalendarData } from '../lib/calendar-logic'
-import { getAvailableChipsFromDB } from '../db/booking-db'
-import { getPlansFromDB } from '../db/plan-db'
+import { getAvailableChipsFromDB } from '../db/repositories/booking-db'
+import { getPlansFromDB } from '../db/repositories/plan-db'
 
 /* --- 🧱 UI COMPONENTS --- */
 import { ServicePlanList } from '../components/Booking/ServicePlanCard'

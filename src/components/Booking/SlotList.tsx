@@ -11,8 +11,8 @@
 import { html } from 'hono/html'
 import { Context } from 'hono'
 import { BUSINESS_INFO } from '../../constants/info'
-import { getAvailableChipsFromDB } from '../../db/booking-db'
-import { getPlansFromDB } from '../../db/plan-db'
+import { getAvailableChipsFromDB } from '../../db/repositories/booking-db'
+import { getPlansFromDB } from '../../db/repositories/plan-db'
 import { calculatePossibleSlots } from '../../lib/slot-logic'
 
 /**
