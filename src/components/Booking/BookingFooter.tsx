@@ -1,7 +1,7 @@
 /**
  * @file BookingFooter.tsx
  * @description 予約フローの最終確定を行う固定フッターコンポーネント。
- * [v4.0 統合モデル]
+ * [v4.3 文言定数化・安全モデル]
  * - プランに応じた金額の動的表示 (¥表示 vs 要相談)
  * - カレンダーの属性ベース(data-selected)の日付取得に対応
  * - カスタムイベント selectionChange によるカレンダー連動の強化
@@ -32,6 +32,22 @@ export const BookingFooter = () => html`
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      /**
+       * ---------------------------------------------------------
+       * 編集可能な文言の設定
+       * ---------------------------------------------------------
+       */
+      const UI_TEXT = {
+        CURRENCY: 'JPY',
+        CONSULTATION: '要相談',
+        SELECT_PLAN: 'Select a Plan',
+        SELECT_DATE: 'Select Date',
+        SELECT_TIME: 'Select Time',
+        BOOK_NOW: 'Book Now',
+        CONTACT: 'Contact for Consultation',
+        PROCESSING: 'Processing...'
+      };
+
       // 要素の取得
       const priceDisplay = document.getElementById('display-price');
       const bookingButton = document.getElementById('final-booking-button');
@@ -54,9 +70,9 @@ export const BookingFooter = () => html`
 
         // --- A. 価格表示の更新 ---
         if (isConsulting || price === '0') {
-          priceDisplay.innerHTML = '<span class="text-sm font-bold">要相談</span>';
+          priceDisplay.innerHTML = '<span class="text-sm font-bold">' + UI_TEXT.CONSULTATION + '</span>';
         } else {
-          priceDisplay.innerHTML = \`<span class="text-xs mr-1 font-normal opacity-40">JPY</span>\${Number(price).toLocaleString()}\`;
+          priceDisplay.innerHTML = '<span class="text-xs mr-1 font-normal opacity-40">' + UI_TEXT.CURRENCY + '</span>' + Number(price).toLocaleString();
         }
 
         // --- B. カレンダーの表示制御 ---
@@ -67,8 +83,8 @@ export const BookingFooter = () => html`
         // --- C. ボタンと遷移先の更新 ---
         if (isConsulting) {
           // 【相談ケース】カレンダー不要で即座に問い合わせへ
-          buttonText.textContent = 'Contact for Consultation';
-          currentTargetUrl = \`/contact?plan=\${planId}\`;
+          buttonText.textContent = UI_TEXT.CONTACT;
+          currentTargetUrl = '/contact?plan=' + planId;
           enableButton();
         } else {
           // 【通常ケース】スロットの選択状態を確認
@@ -91,16 +107,16 @@ export const BookingFooter = () => html`
           const unix = selectedRadio.value;
           const date = selectedCell.getAttribute('data-date');
           
-          currentTargetUrl = \`/api/checkout?plan=\${planId}&date=\${date}&slot=\${unix}\`;
-          buttonText.textContent = 'Book Now';
+          currentTargetUrl = '/api/checkout?plan=' + planId + '&date=' + date + '&slot=' + unix;
+          buttonText.textContent = UI_TEXT.BOOK_NOW;
           enableButton();
         } else {
           currentTargetUrl = '';
           // ガイドテキストの更新
           if (!selectedCell) {
-            buttonText.textContent = 'Select Date';
+            buttonText.textContent = UI_TEXT.SELECT_DATE;
           } else if (!selectedRadio) {
-            buttonText.textContent = 'Select Time';
+            buttonText.textContent = UI_TEXT.SELECT_TIME;
           }
           disableButton();
         }
@@ -141,7 +157,7 @@ export const BookingFooter = () => html`
         if (!currentTargetUrl || bookingButton.disabled) return;
         
         bookingButton.disabled = true;
-        bookingButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Processing...';
+        bookingButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> ' + UI_TEXT.PROCESSING;
         
         window.location.href = currentTargetUrl;
       });
