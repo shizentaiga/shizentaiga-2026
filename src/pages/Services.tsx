@@ -97,7 +97,6 @@ export const Services = async (c: Context) => {
 
       ${BookingFooter()}
 
-      /* --- 💡 CLIENT-SIDE INTERACTION --- */
       <script>
         /**
          * [Programmer Note] イベントリスナー
