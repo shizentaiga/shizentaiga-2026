@@ -1,11 +1,10 @@
 /**
  * @file BookingFooter.tsx
  * @description 予約フローの最終確定を行う固定フッターコンポーネント。
- * [v4.3 文言定数化・安全モデル]
- * - プランに応じた金額の動的表示 (¥表示 vs 要相談)
- * - カレンダーの属性ベース(data-selected)の日付取得に対応
- * - カスタムイベント selectionChange によるカレンダー連動の強化
- * - 通常予約（Checkout）と相談（Contact）の分岐処理
+ * [v4.4 パス一元管理・安全モデル]
+ * - URLパスを変数化し、スクリプト冒頭で定義
+ * - プランに応じた金額の動的表示
+ * - 通常予約（Checkout）と相談（Contact）の分岐処理を維持
  */
 
 import { html } from 'hono/html'
@@ -33,8 +32,17 @@ export const BookingFooter = () => html`
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       /**
+       * 1. 各種パスの設定（Single Source of Truth）
        * ---------------------------------------------------------
-       * 編集可能な文言の設定
+       */
+      const ROUTES = {
+        CHECKOUT: '/services/checkout', // 正常系の遷移先
+        CONTACT:  '/contact',           // 問い合わせページ
+        ERROR:    '/error'              // 万が一の逃げ道
+      };
+
+      /**
+       * 2. 編集可能な文言の設定
        * ---------------------------------------------------------
        */
       const UI_TEXT = {
@@ -57,8 +65,7 @@ export const BookingFooter = () => html`
       let currentTargetUrl = '';
 
       /**
-       * 1. 状態の同期（メインロジック）
-       * プラン選択状況とスロット選択状況を読み取り、UIを更新します。
+       * 3. 状態の同期（メインロジック）
        */
       function syncSelection() {
         const selectedCard = document.querySelector('.plan-card[data-selected="true"]');
@@ -82,37 +89,35 @@ export const BookingFooter = () => html`
 
         // --- C. ボタンと遷移先の更新 ---
         if (isConsulting) {
-          // 【相談ケース】カレンダー不要で即座に問い合わせへ
           buttonText.textContent = UI_TEXT.CONTACT;
-          currentTargetUrl = '/contact?plan=' + planId;
+          currentTargetUrl = ROUTES.CONTACT + '?plan=' + planId;
           enableButton();
         } else {
-          // 【通常ケース】スロットの選択状態を確認
           updateBookingUrl(planId);
         }
       }
 
       /**
-       * 2. 予約URLの組み立て
-       * 修正：カレンダーのセルから data-selected="true" を探すように変更
+       * 4. 予約URLの組み立て
        */
       function updateBookingUrl(planId) {
-        // SlotList.tsx のラジオボタン
         const selectedRadio = document.querySelector('input[name="slot_id"]:checked');
-        
-        // CalendarSection.tsx の選択済みセル（属性ベース）
         const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
 
         if (selectedRadio && selectedCell) {
           const unix = selectedRadio.value;
           const date = selectedCell.getAttribute('data-date');
           
-          currentTargetUrl = '/api/checkout?plan=' + planId + '&date=' + date + '&slot=' + unix;
+          // ROUTES.CHECKOUT を使用してパスを動的に生成
+          currentTargetUrl = ROUTES.CHECKOUT + '?plan=' + planId + '&date=' + date + '&slot=' + unix;
+          
+          // テスト用：常にエラーページに飛ばしたい場合は以下を使用
+          // currentTargetUrl = ROUTES.ERROR;
+
           buttonText.textContent = UI_TEXT.BOOK_NOW;
           enableButton();
         } else {
           currentTargetUrl = '';
-          // ガイドテキストの更新
           if (!selectedCell) {
             buttonText.textContent = UI_TEXT.SELECT_DATE;
           } else if (!selectedRadio) {
@@ -132,12 +137,10 @@ export const BookingFooter = () => html`
       }
 
       /**
-       * 3. イベント監視（デリゲーション & カスタムイベント）
+       * 5. イベント監視
        */
-      // プラン変更やスロット選択を監視
       document.addEventListener('change', (e) => {
         if (e.target.name === 'plan_id' || e.target.name === 'slot_id') {
-          // プランカードの data-selected を手動更新（スタイリング同期）
           if (e.target.name === 'plan_id') {
             document.querySelectorAll('.plan-card').forEach(card => {
               card.dataset.selected = (card.dataset.planId === e.target.value) ? 'true' : 'false';
@@ -147,12 +150,10 @@ export const BookingFooter = () => html`
         }
       });
 
-      // カレンダーの日付クリック（CalendarSectionからの通知）を監視
       document.addEventListener('selectionChange', () => {
         syncSelection();
       });
 
-      // ボタンクリック時の処理（二重送信防止）
       bookingButton.addEventListener('click', () => {
         if (!currentTargetUrl || bookingButton.disabled) return;
         
