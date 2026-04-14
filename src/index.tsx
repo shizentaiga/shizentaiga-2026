@@ -9,9 +9,10 @@
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/serve-static'
 import { renderer } from './renderer' 
-import { Top } from './pages/Top'     
+import { Top } from './pages/Top'      
 import { Legal } from './pages/Legal' 
 import { ErrorPage } from './pages/Error'
+import { ContactPage } from './pages/Contact'
 
 /* --- 🧱 UI COMPONENTS & PAGES --- */
 import { Services } from './pages/Services'
@@ -72,12 +73,34 @@ app.get('/services', async (c) => {
 /**
  * [Checkout Page] /services/checkout
  * 予約内容確認画面
+ * [v3.0 堅牢化] 店舗IDを含む必須パラメータが欠けている場合はエラーへ飛ばします。
  */
 app.get('/services/checkout', (c) => {
-  const plan = c.req.query('plan') || ''
+  const shopId = c.req.query('shop_id')
+  const planId = c.req.query('plan')
   const date = c.req.query('date')
   const slot = c.req.query('slot')
-  return c.render(<Checkout planId={plan} date={date} slot={slot} />)
+
+  // 全ての必須パラメータが string 型として存在するかチェック
+  if (!shopId || !planId || !date || !slot) {
+    return c.redirect('/error')
+  }
+
+  // チェックを通過したため、型エラーなく Checkout コンポーネントへ渡せます
+  return c.render(
+    <Checkout shopId={shopId} planId={planId} date={date} slot={slot} />,
+    { title: 'Confirm Booking | 予約内容の確認' }
+  )
+})
+
+/**
+ * [Contact Page] /contact
+ * 問い合わせページ
+ */
+app.get('/contact', (c) => {
+  return c.render(<ContactPage />, {
+    title: `Contact | お問い合わせ窓口`,
+  })
 })
 
 /**

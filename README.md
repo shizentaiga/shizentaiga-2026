@@ -121,41 +121,49 @@ src/
 スキーマ変更や確認は [04_database_schema.md](./docs/04_database_schema.md) を参照。
 
 
-## 🚀 開発ロードマップ（shizentaiga_db v2.6 準拠）
+# 🚀 開発ロードマップ（shizentaiga_db v3.0）
+
+「つながりは、偶然から。」を体現する、哲学的かつ堅牢な予約プラットフォームの構築。
+
+---
 
 ### Phase 1：基盤構築 & ドメイン移行（Done）
-- [x] Hono + Vite 環境の初期化と GitHub 同期
-- [x] shizentaiga.com 本番ドメインの Workers 移行完了
-- [x] .gitignore / wrangler.json のセキュリティ強化
-- [x] D1接続疎通と id-utils.ts (ULID規約) の確立
+- [x] **Hono + Vite 環境の初期化**: GitHub 同期と開発パイプラインの確立
+- [x] **本番ドメイン移行**: shizentaiga.com の Workers 移行完了
+- [x] **セキュリティ強化**: `.gitignore` / `wrangler.json` の秘匿情報保護
+- [x] **ID・DB規約の確立**: D1 接続疎通と `id-utils.ts` (ULID) の導入
 
 ### Phase 2：コア機能実装 & 決済統合（Current）
 「1日1タスク」を基準に、実装の堅牢性と証跡（Audit Trail）の確保を最優先。
 
-#### 🔧 Step A：DB基盤の完成とマスタ表示
-- [x] D1スキーマ刷新(v2.6)（description追加、外部キー制約設定）
-- [x] マスタデータ投入（seed_01による店舗・プラン投入完了）
-- [x] プラン一覧(/services)本番実装（test10のロジックを正規画面へ統合）
+#### 🔧 Step A：DB基盤 & マスタ表示（Done）
+- [x] **D1 スキーマ刷新**: `description` 追加、外部キー制約の厳格化
+- [x] **マスタデータ投入**: `seed_01` による店舗・プラン情報の初期化
+- [x] **プラン一覧実装**: `/services` 画面へのマスタデータ動的表示
 
-#### 🧠 Step B：予約エンジン・コアロジック
-- [x] Day 4: date-fns 導入（JST/UTC管理とカレンダー生成語彙の統一）
-- [ ] Day 5: 動的スロット計算（稼働枠と予約済みスロットの突合ロジック）
-- [ ] Day 6: 仮確保(Pending)機能（expires_at による15分間の論理ロック実装）
+#### 🧠 Step B：予約エンジン & ルーティング（Current）
+- [x] **Day 4: 日時管理の統一**: `date-fns` 導入（JST/UTC管理とカレンダー語彙の同期）
+- [x] **Day 5: 動的スロット計算**: 稼働枠と予約済みデータの突合ロジック実装
+- [x] **Day 6: ルーティング基盤の再整備**: 
+    - `index.tsx` へのルート集約と絶対パス化
+    - 汎用エラーページ (`/error`) の確立
+    - フロント・バック間の「情報のバトン」の同期確認
+- [ ] **Day 6.5 (Extra): 仮確保(Pending)機能**: `expires_at` による15分間の論理ロック実装
 
-#### 💳 Step C：決済連携 & 証跡の確保
-- [ ] Day 7: Stripe SDK 導入（Checkout Session作成と処理ログの先行発行）
-- [ ] Day 8: 決済成功ハンドリング（Webhookによる status='booked' への更新）
-- [ ] Day 9: 非正規化スナップショット（予約確定時の価格・プラン名の永続化）
-- [ ] Day 10: 予約完了通知（Resend 連携による自動メール送信）
+#### 💳 Step C：決済連携 & 証跡の確保（Next）
+- [ ] **Day 7: Stripe SDK 導入**: Checkout Session 作成と処理ログの先行発行
+- [ ] **Day 8: 決済成功ハンドリング**: Webhook による `status='booked'` への一貫性保持
+- [ ] **Day 9: 非正規化スナップショット**: 確定時の価格・プラン名の永続化（監査証跡）
+- [ ] **Day 10: 予約完了通知**: `Resend` 連携による自動確認メール送信
 
 #### 🔐 Step D：管理機能 & 公開準備
-- [ ] Day 11: アクセス制限（Cloudflare Access による /admin 保護）
-- [ ] Day 12: 統合疎通テスト（決済〜証跡保存〜通知までの一気通貫確認）
+- [ ] **Day 11: アクセス制限**: `Cloudflare Access` による `/admin` 領域の保護
+- [ ] **Day 12: 統合疎通テスト**: 決済〜証跡保存〜通知までの一気通貫確認
 
 ### Phase 3：システム拡張
-- [ ] 複数拠点・複数業種対応の予約基盤への昇華
-- [ ] Cron Triggers による期限切れ在庫クリーンアップの自動化
-- [ ] 「つながりは、偶然から。」を体現する予約プラットフォームへの拡張
+- [ ] **自動メンテナンス**: `Cron Triggers` による期限切れ在庫の自動クリーンアップ
+- [ ] **プラットフォーム化**: 複数拠点・複数業種対応への抽象化
+- [ ] **知見の体系化**: 実装プロセスを通じたビジネス哲学の note/Kindle 公開
 
 ---
 

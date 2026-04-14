@@ -1,15 +1,15 @@
 /**
  * @file BookingFooter.tsx
  * @description 予約フローの最終確定を行う固定フッターコンポーネント。
- * [v4.4 パス一元管理・安全モデル]
+ * [v4.5 多店舗対応・shop_id 連携モデル]
+ * - shopId を引数として受け取り、Checkout URL へ付与
  * - URLパスを変数化し、スクリプト冒頭で定義
- * - プランに応じた金額の動的表示
  * - 通常予約（Checkout）と相談（Contact）の分岐処理を維持
  */
 
 import { html } from 'hono/html'
 
-export const BookingFooter = () => html`
+export const BookingFooter = (shopId: string) => html`
   <div class="fixed bottom-0 w-full bg-white/95 backdrop-blur-md py-6 border-t border-gray-200 z-50">
     <div class="max-w-3xl mx-auto px-6 flex justify-between items-center">
       <div class="summary">
@@ -56,6 +56,9 @@ export const BookingFooter = () => html`
         PROCESSING: 'Processing...'
       };
 
+      // サーバーサイドから注入された shopId
+      const currentShopId = "${shopId}";
+
       // 要素の取得
       const priceDisplay = document.getElementById('display-price');
       const bookingButton = document.getElementById('final-booking-button');
@@ -90,7 +93,8 @@ export const BookingFooter = () => html`
         // --- C. ボタンと遷移先の更新 ---
         if (isConsulting) {
           buttonText.textContent = UI_TEXT.CONTACT;
-          currentTargetUrl = ROUTES.CONTACT + '?plan=' + planId;
+          // 相談時も必要に応じて shop_id を含める設計
+          currentTargetUrl = ROUTES.CONTACT + '?shop_id=' + currentShopId + '&plan=' + planId;
           enableButton();
         } else {
           updateBookingUrl(planId);
@@ -108,12 +112,13 @@ export const BookingFooter = () => html`
           const unix = selectedRadio.value;
           const date = selectedCell.getAttribute('data-date');
           
-          // ROUTES.CHECKOUT を使用してパスを動的に生成
-          currentTargetUrl = ROUTES.CHECKOUT + '?plan=' + planId + '&date=' + date + '&slot=' + unix;
+          // 【v4.5】shop_id をクエリパラメータの先頭に追加
+          currentTargetUrl = ROUTES.CHECKOUT + 
+                             '?shop_id=' + currentShopId + 
+                             '&plan=' + planId + 
+                             '&date=' + date + 
+                             '&slot=' + unix;
           
-          // テスト用：常にエラーページに飛ばしたい場合は以下を使用
-          // currentTargetUrl = ROUTES.ERROR;
-
           buttonText.textContent = UI_TEXT.BOOK_NOW;
           enableButton();
         } else {

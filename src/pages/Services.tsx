@@ -1,6 +1,6 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレンダラー（v3.7 予約フロー・ステート連携モデル）。
+ * @description サービス予約ページのメインレンダラー（v3.8 多店舗・shop_id 連携モデル）。
  * * [監査反映済み] 
  * A. 日付選択時に `data-selected` 属性を動的に付け替え、プラン変更時の再送ロジックを確立.
  * B. スクリプト全体を `window.load` で保護し、HTMX未定義エラーを防止.
@@ -121,6 +121,7 @@ const DebugMonitor = () => html`
  */
 const PageLayout = async (props: {
   ctx: Context,
+  shopId: string, // [v3.8] 追加
   displayPlans: any[],
   calendarDays: any[],
   availableDates: { date: string }[],
@@ -154,7 +155,7 @@ const PageLayout = async (props: {
       </div>
       ${ConsultantSection()}
     </div>
-    ${BookingFooter()}
+    ${BookingFooter(props.shopId)} 
     ${ClientScript()}
     ${DebugMonitor()}
   </body>
@@ -169,12 +170,16 @@ export const Services = async (c: Context) => {
     getPlansFromDB(c, BUSINESS_INFO.shopName),
     getAvailableChipsFromDB(c)
   ]);
+  
+  // [v3.8] プランデータから shop_id を抽出してリレーする
+  const shopId = displayPlans[0]?.shop_id || ""; 
   const defaultPlanId = displayPlans[0]?.plan_id || "";
   const availableDates = rawChips.map(chip => ({ date: chip.date_string }));
   const firstAvailableDate = availableDates[0]?.date || "";
 
   return PageLayout({
     ctx: c,
+    shopId, // [v3.8] 追加
     displayPlans,
     calendarDays: generateCalendarData(currentDate),
     availableDates,
