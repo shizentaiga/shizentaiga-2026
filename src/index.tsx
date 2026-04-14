@@ -30,10 +30,11 @@ app.use('/static/*', serveStatic({ root: './' }))
 // 2. 全ページ共通のHTMLレイアウト（renderer.tsx）を適用：⭐️全ルートの入り口
 app.all('*', renderer)
 
-// サンドボックス（開発・テスト用URL: /_debug）
+// サンドボックス（開発・テスト用URL: /_debug） ⭐️ローカル環境のみサンドボックスを表示
 import sandboxBridge from './_sandbox/_bridge';
-app.route('/_debug', sandboxBridge);
-
+if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+  app.route('/_debug', sandboxBridge);
+}
 
 /* --- 1. PAGES (Main Routes) --- */
 
