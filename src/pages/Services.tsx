@@ -1,12 +1,12 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレンダラー（v3.8 多店舗・shop_id 連携モデル）。
+ * @description サービス予約ページのメインレンダラー（v3.9 デバッグ制御・ID連携強化モデル）。
  * * [監査反映済み] 
  * A. 日付選択時に `data-selected` 属性を動的に付け替え、プラン変更時の再送ロジックを確立.
  * B. スクリプト全体を `window.load` で保護し、HTMX未定義エラーを防止.
  * * [デバッグ強化]
- * - 予約枠（チップス）選択時に `TIME (start_at_unix)` をモニターに反映.
- * - 選択状態を監視し、プラン・日付・時間の「3点セット」が揃う流れを可視化.
+ * - フラグ `SHOW_DEBUG` によりモニターの表示/非表示を切り替え可能.
+ * - SHOP_ID および STAFF_ID (固定値) をモニターに追加.
  */
 
 import { Context } from 'hono'
@@ -104,10 +104,12 @@ const ClientScript = () => html`
 /**
  * 【Debug Area】監視モニターコンポーネント
  */
-const DebugMonitor = () => html`
+const DebugMonitor = (shopId: string, staffId: string) => html`
   <div id="debug-monitor" class="fixed bottom-4 left-4 z-50 bg-black/85 text-[9px] font-mono text-green-400 p-3 rounded-sm border border-green-500/30 w-64 shadow-2xl pointer-events-none">
     <p class="border-b border-green-500/30 mb-2 pb-1 text-white font-bold tracking-tighter">SYSTEM_STATE_MONITOR</p>
     <div class="space-y-1">
+      <p>SHOP_ID : <span class="text-blue-300">${shopId}</span></p>
+      <p>STAFF_ID: <span class="text-blue-300">${staffId}</span></p>
       <p>PLAN_ID : <span id="debug-plan" class="text-yellow-400">---</span></p>
       <p>DATE    : <span id="debug-date" class="text-yellow-400">---</span></p>
       <p>TIME    : <span id="debug-time" class="text-pink-400">---</span></p>
@@ -121,7 +123,8 @@ const DebugMonitor = () => html`
  */
 const PageLayout = async (props: {
   ctx: Context,
-  shopId: string, // [v3.8] 追加
+  shopId: string,
+  staffId: string, // [v3.9] 追加
   displayPlans: any[],
   calendarDays: any[],
   availableDates: { date: string }[],
@@ -129,37 +132,42 @@ const PageLayout = async (props: {
   defaultPlanId: string,
   baseYear: number,
   baseMonth: number
-}) => html`
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-  <body class="bg-gray-50 text-gray-800 leading-relaxed pb-40">
-    <header class="bg-white py-12 text-center border-b border-gray-100">
-      <h1 class="text-xl font-medium tracking-[0.2em] uppercase text-gray-900">${UI_TEXT.TITLE}</h1>
-      <p class="text-[10px] text-gray-600 mt-2 tracking-widest">${UI_TEXT.SUB_TITLE}</p>
-    </header>
-    <div class="max-w-3xl mx-auto p-6">
-      <section class="mb-12">
-        <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">${UI_TEXT.STEP_PLAN}</h2>
-        <div id="plan-selection-area">
-          ${ServicePlanList(props.displayPlans)}
+}) => {
+  // --- CONFIGURATION ---
+  const SHOW_DEBUG = true; // ⭐️ ここを false にするとモニターが非表示になります
+
+  return html`
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <body class="bg-gray-50 text-gray-800 leading-relaxed pb-40">
+      <header class="bg-white py-12 text-center border-b border-gray-100">
+        <h1 class="text-xl font-medium tracking-[0.2em] uppercase text-gray-900">${UI_TEXT.TITLE}</h1>
+        <p class="text-[10px] text-gray-600 mt-2 tracking-widest">${UI_TEXT.SUB_TITLE}</p>
+      </header>
+      <div class="max-w-3xl mx-auto p-6">
+        <section class="mb-12">
+          <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">${UI_TEXT.STEP_PLAN}</h2>
+          <div id="plan-selection-area">
+            ${ServicePlanList(props.displayPlans)}
+          </div>
+        </section>
+        <div id="calendar-container" class="mb-12">
+          ${CalendarSection(props.calendarDays, props.availableDates, props.firstAvailableDate, props.baseYear, props.baseMonth)}
         </div>
-      </section>
-      <div id="calendar-container" class="mb-12">
-        ${CalendarSection(props.calendarDays, props.availableDates, props.firstAvailableDate, props.baseYear, props.baseMonth)}
+        <div id="slot-list-container" class="mb-12">
+          ${await SlotList(props.ctx, props.firstAvailableDate, props.defaultPlanId)}
+        </div>
+        <div id="error-display" class="hidden mb-12 p-4 bg-red-50 text-red-500 text-[10px] rounded-sm text-center tracking-widest">
+          ${UI_TEXT.ERROR_FETCH}
+        </div>
+        ${ConsultantSection()}
       </div>
-      <div id="slot-list-container" class="mb-12">
-        ${await SlotList(props.ctx, props.firstAvailableDate, props.defaultPlanId)}
-      </div>
-      <div id="error-display" class="hidden mb-12 p-4 bg-red-50 text-red-500 text-[10px] rounded-sm text-center tracking-widest">
-        ${UI_TEXT.ERROR_FETCH}
-      </div>
-      ${ConsultantSection()}
-    </div>
-    ${BookingFooter(props.shopId)} 
-    ${ClientScript()}
-    ${DebugMonitor()}
-  </body>
-`;
+      ${BookingFooter(props.shopId)} 
+      ${ClientScript()}
+      ${SHOW_DEBUG ? DebugMonitor(props.shopId, props.staffId) : ''}
+    </body>
+  `;
+}
 
 /**
  * 【Programmer Area】メインレンダリング関数
@@ -171,15 +179,16 @@ export const Services = async (c: Context) => {
     getAvailableChipsFromDB(c)
   ]);
   
-  // [v3.8] プランデータから shop_id を抽出してリレーする
-  const shopId = displayPlans[0]?.shop_id || ""; 
+  const shopId = displayPlans[0]?.shop_id || "shp_unknown"; 
+  const staffId = "stf_shizentai"; // 現状は固定値、将来的にDBから取得可能
   const defaultPlanId = displayPlans[0]?.plan_id || "";
   const availableDates = rawChips.map(chip => ({ date: chip.date_string }));
   const firstAvailableDate = availableDates[0]?.date || "";
 
   return PageLayout({
     ctx: c,
-    shopId, // [v3.8] 追加
+    shopId,
+    staffId,
     displayPlans,
     calendarDays: generateCalendarData(currentDate),
     availableDates,
