@@ -76,11 +76,12 @@ export const Checkout = ({
 
           <div class="mt-10">
             <form action="/services/checkout/session" method="POST">
-              <input type="hidden" name="plan_name" value="${planName}">
-              <input type="hidden" name="amount" value="${price}">
-              <input type="hidden" name="plan_id" value="${rawPlanId}">
-              <input type="hidden" name="date" value="${date}">
-              <input type="hidden" name="slot" value="${slot}">
+            <input type="hidden" name="plan_name" value="${planName}">
+            <input type="hidden" name="amount" value="${price}">
+            <input type="hidden" name="plan_id" value="${rawPlanId}">
+            <input type="hidden" name="shop_id" value="${rawShopId}"> 
+            <input type="hidden" name="date" value="${date}">
+            <input type="hidden" name="slot" value="${slot}">
 
               <button type="submit" class="w-full bg-black text-white py-5 text-[11px] font-bold rounded-sm tracking-[0.2em] uppercase hover:bg-gray-800 transition-all flex justify-center items-center">
                 Proceed to Payment

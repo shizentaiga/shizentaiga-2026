@@ -1,229 +1,178 @@
 /**
  * @file index.tsx
- * @description アプリケーションのエントリーポイント（全体の設計図）。
- * 各URL（ルート）と、表示するページ・コンポーネントを紐付けます。
- * [v4.6 統合監査済み]
- * - 固定値を排除し、上位（Route Handler）で情報を確定させて下位へ渡す設計に統一。
+ * @description アプリケーションのエントリーポイント。
+ * [v4.8 構造化リファクタリング]
+ * - ビジネスロジックをハンドラー関数として分離し、ルート定義の視認性を向上。
+ * - 1行1処理を基本とし、コメントを読むだけで改修箇所が特定できる設計。
  */
 
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/serve-static'
 import { renderer } from './renderer' 
+
+/* --- 🧱 UI COMPONENTS & PAGES --- */
 import { Top } from './pages/Top'      
 import { Legal } from './pages/Legal' 
 import { ErrorPage } from './pages/Error'
 import { ContactPage } from './pages/Contact'
 import { SuccessPage } from './pages/Success'
-
-/* --- 🧱 UI COMPONENTS & PAGES --- */
 import { Services } from './pages/Services'
 import { Checkout } from './pages/Checkout'
 import { SlotList } from './components/Booking/SlotList'
 
 /* --- ⚙️ DATA ACCESS --- */
-import { getPlansFromDB } from './db/repositories/plan-db'
+import { getPlanById } from './db/repositories/plan-db' 
 import { BUSINESS_INFO } from './constants/info'
 
 /* --- 💳 EXTERNAL SERVICES --- */
 import { createStripeSession } from './lib/stripe-server'
 
-/**
- * [Type Definition] Cloudflare D1との接続型を定義
- */
-type BaseBindings = {
-  shizentaiga_db: D1Database;
-}
-
-// 2. index.tsx の Stripe API だけが使いたい「拡張された型」
-type StripeBindings = BaseBindings & {
-  STRIPE_SECRET_KEY: string;
-}
+/* --- 📌 TYPE DEFINITIONS --- */
+type BaseBindings = { shizentaiga_db: D1Database; }
+type StripeBindings = BaseBindings & { STRIPE_SECRET_KEY: string; }
 
 const app = new Hono<{ Bindings: BaseBindings }>()
 
 /* --- 0. CONFIGURATION & ASSETS --- */
 
-// 1. 静的資産（画像・CSS・外部JS等）の配信パス
+// 静的資産の配信
 // @ts-ignore
 app.use('/static/*', serveStatic({ root: './' }))
 
-// 2. 全ページ共通のHTMLレイアウト（renderer.tsx）を適用
+// 全ページ共通レイアウトの適用
 app.all('*', renderer)
 
-// サンドボックス（開発・テスト用URL: /_debug）
+// デバッグ用サンドボックス
 import sandboxBridge from './_sandbox/_bridge';
-// if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
-//   app.route('/_debug', sandboxBridge);
-// }
-app.route('/_debug', sandboxBridge);  // 本番環境でも_debugを表示
+app.route('/_debug', sandboxBridge); 
 
-/* --- 1. PAGES (Main Routes) --- */
+/* --- 1. PAGE HANDLERS (表示処理の定義) --- */
 
 /**
- * [Top Page] /
+ * [TOP] トップページ
  */
-app.get('/', (c) => {
-  return c.render(<Top />, {
-    title: '清善 泰賀 | 公式サイト',
-    description: 'マネジメントコンサルタント 清善 泰賀のオフィシャルサイトです。'
-  })
-})
+const renderTopPage = (c: any) => c.render(<Top />, {
+  title: '清善 泰賀 | 公式サイト',
+  description: 'マネジメントコンサルタント 清善 泰賀のオフィシャルサイトです。'
+});
 
 /**
- * [Legal Information] /legal
+ * [LEGAL] 特定商取引法に基づく表記
  */
-app.get('/legal', (c) => {
-  return c.render(<Legal />, { 
-    title: 'Legal Information | 特定商取引法に基づく表記', 
-    description: '特定商取引法に基づく表記を掲載しています。' 
-  })
-})
+const renderLegalPage = (c: any) => c.render(<Legal />, { 
+  title: 'Legal Information | 特定商取引法に基づく表記' 
+});
 
 /**
- * [Services & Booking] /services
+ * [SERVICES] サービス一覧・予約開始ページ
  */
-app.get('/services', async (c) => {
+const renderServicesPage = async (c: any) => {
   const content = await Services(c);
-  return c.render(content, { 
-    title: 'Services & Booking | 予約案内', 
-    description: '現在の予約状況をご案内します。' 
-  })
-})
+  return c.render(content, { title: 'Services & Booking | 予約案内' });
+};
 
 /**
- * [Checkout Page] /services/checkout
- * [v4.6 改修] 
- * - 固定値（ショップ名・担当者名）を、このルートハンドラー内で確定させる設計に変更。
- * - 開発モードかどうかに応じて、Checkoutコンポーネントのデバッグ表示を切り替えます。
+ * [CHECKOUT] 予約内容最終確認ページ
  */
-app.get('/services/checkout', async (c) => {
-  const shopId = c.req.query('shop_id')
-  const planId = c.req.query('plan')
-  const date = c.req.query('date')
-  const slot = c.req.query('slot')
-  const staffIdFromQuery = c.req.query('staff_id') // 将来用
+const renderCheckoutPage = async (c: any) => {
+  // 1. クエリパラメータの抽出
+  const shopId = c.req.query('shop_id');
+  const planId = c.req.query('plan');
+  const date = c.req.query('date');
+  const slot = c.req.query('slot');
 
-  // 全ての必須パラメータが存在するかチェック
-  if (!shopId || !planId || !date || !slot) {
-    return c.redirect('/error')
-  }
+  // 2. パラメータ不足ならエラーへ
+  if (!shopId || !planId || !date || !slot) return c.redirect('/error');
 
   try {
-    // ⭐️ データ確定：将来的にはここで shopId を使ってDBから店舗・スタッフ情報を引きます
-    const targetShopName = BUSINESS_INFO.shopName; 
-    
-    // DBアクセス：プラン情報を取得
-    const plans = await getPlansFromDB(c, targetShopName);
-    const selectedPlan = plans.find(p => p.plan_id === planId);
+    // 3. DBからプラン詳細を取得
+    const plan = await getPlanById(c, shopId, planId);
+    if (!plan) return c.redirect('/error');
 
-    if (!selectedPlan) {
-      console.error(`Plan not found: ${planId}`);
-      return c.redirect('/error');
-    }
-
-    // ⭐️ 制御情報の決定（最上位で決める）
+    // 4. 環境設定と表示用Propsの整理
     const isDev = import.meta.env?.DEV || process.env.NODE_ENV === 'development';
+    const checkoutProps = {
+      shopName: BUSINESS_INFO.shopName,
+      staffName: "清善 泰賀",
+      planName: plan.plan_name,
+      duration: plan.duration_min,
+      price: plan.price_amount,
+      rawShopId: shopId,
+      rawPlanId: planId,
+      date,
+      slot,
+      showDebug: isDev,
+      backUrl: "/services"
+    };
 
-    // 確定したすべてのデータを Checkout コンポーネントへ注入（インジェクション）
-    return c.render(
-      <Checkout 
-        shopName={targetShopName}            // ⭐️ 将来はDB取得値に差し替え
-        staffName="清善 泰賀"                // ⭐️ 将来はDB取得値に差し替え
-        planName={selectedPlan.plan_name}
-        duration={selectedPlan.duration_min}
-        price={selectedPlan.price_amount}
-        rawShopId={shopId} 
-        rawPlanId={planId} 
-        date={date} 
-        slot={slot} 
-        showDebug={isDev}                    // ⭐️ 開発時のみデバッグ表示をONにする制御
-        backUrl="/services"                  // ⭐️ 戻り先URLの指定
-      />,
-      { title: 'Confirm Booking | 予約内容の確認' }
-    )
+    // 5. 画面描画
+    return c.render(<Checkout {...checkoutProps} />, { title: 'Confirm Booking' });
   } catch (e) {
-    console.error("Critical error fetching checkout data:", e);
+    console.error("Checkout Error:", e);
     return c.redirect('/error');
   }
-})
+};
+
+/* --- 2. ACTION HANDLERS (実行処理の定義) --- */
 
 /**
- * [Contact Page] /contact
+ * [STRIPE] 決済セッション作成処理
  */
-app.get('/contact', (c) => {
-  return c.render(<ContactPage />, {
-    title: `Contact | お問い合わせ窓口`,
-  })
-})
+const handleStripeSession = async (c: any) => {
+  const env = c.env as StripeBindings;
+  const body = await c.req.parseBody();
+  const baseUrl = new URL(c.req.url).origin;
 
-/**
- * [Error Page] /error
- */
-app.get('/error', (c) => {
-  return c.render(<ErrorPage />, {
-    title: 'Error | お手数ですが再度お試しください',
-  })
-})
+  try {
+    // 1. POSTデータの変数化
+    const { plan_name, amount, plan_id, shop_id, date, slot } = body;
+    const shopIdStr = String(shop_id);
 
-/* --- 2. API / DYNAMIC FRAGMENTS (HTMX Endpoints) --- */
+    // 2. Stripe用URLの構築
+    const successUrl = `${baseUrl}/services/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/services/checkout?shop_id=${shopIdStr}&plan=${plan_id}&date=${date}&slot=${slot}`;
 
-/**
- * [Slot Update] /services/slots
- */
+    // 3. セッション作成実行
+    const sessionUrl = await createStripeSession(
+      env.STRIPE_SECRET_KEY,
+      String(plan_name),
+      Number(amount),
+      successUrl,
+      cancelUrl,
+      { plan_id: String(plan_id), date: String(date), slot: String(slot) }
+    );
+
+    // 4. Stripe決済画面へリダイレクト
+    return c.redirect(sessionUrl, 303);
+  } catch (e: any) {
+    console.error("Stripe Error:", e.message);
+    return c.text(`Stripe API Error: ${e.message}`, 500);
+  }
+};
+
+/* --- 3. ROUTE MAPPING (URLと処理の紐付け) --- */
+
+app.get('/', renderTopPage);
+app.get('/legal', renderLegalPage);
+app.get('/services', renderServicesPage);
+app.get('/services/checkout', renderCheckoutPage);
+app.get('/contact', (c) => c.render(<ContactPage />, { title: 'Contact' }));
+app.get('/error', (c) => c.render(<ErrorPage />, { title: 'Error' }));
+
+// HTMX: スロット更新用
 app.get('/services/slots', async (c) => {
   const date = c.req.query('date') || "";
   const planId = c.req.query('plan_id') || "";
   return c.html(await SlotList(c, date, planId));
-})
-
-/* --- 3. STRIPE PAYMENT (Post-Booking Logic) --- */
-
-/**
- * [Stripe Session Creation] /services/checkout/session
- * Checkout.tsx の Form 送信を受け取り、Stripe 決済ページへリダイレクトします。
- */
-app.post('/services/checkout/session', async (c) => {
-  // 環境変数の取得
-  const env = c.env as StripeBindings;
-  
-  // Checkout.tsx からの POST データを受け取る
-  const body = await c.req.parseBody();
-  
-  try {
-    const baseUrl = new URL(c.req.url).origin;
-
-    // ⭐️ Step1: stripe-server.ts の外部関数を呼び出し
-    // 日本語URLのエンコード処理等は関数内部で完結させています
-    const sessionUrl = await createStripeSession(
-      env.STRIPE_SECRET_KEY,
-      String(body.plan_name),
-      Number(body.amount),
-      `${baseUrl}/services/success?session_id={CHECKOUT_SESSION_ID}`,
-      `${baseUrl}/services/checkout?shop_id=${BUSINESS_INFO.shopName}&plan=${body.plan_id}&date=${body.date}&slot=${body.slot}`,
-      {
-        plan_id: String(body.plan_id),
-        date: String(body.date),
-        slot: String(body.slot)
-      }
-    );
-
-    // Stripe 決済画面へリダイレクト
-    return c.redirect(sessionUrl, 303);
-  } catch (e: any) {
-    console.error("Stripe API Error (index):", e.message);
-    return c.text(`Stripe API Error: ${e.message}`, 500);
-  }
 });
 
-/**
- * [Payment Success] /services/success
- */
+// Stripe: 決済実行用
+app.post('/services/checkout/session', handleStripeSession);
+
+// Success: 決済完了
 app.get('/services/success', (c) => {
   const sessionId = c.req.query('session_id') || "";
-  return c.render(
-    <SuccessPage sessionId={sessionId} />,
-    { title: 'Payment Success | 決済完了' }
-  )
-})
+  return c.render(<SuccessPage sessionId={sessionId} />, { title: 'Payment Success' });
+});
 
-export default app
+export default app;
