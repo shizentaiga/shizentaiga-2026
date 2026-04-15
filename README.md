@@ -151,7 +151,7 @@ src/
 - [ ] **Day 6.5 (Extra): 仮確保(Pending)機能**: `expires_at` による15分間の論理ロック実装
 
 #### 💳 Step C：決済連携 & 証跡の確保（Next）
-- [ ] **Day 7: Stripe SDK 導入**: Checkout Session 作成と処理ログの先行発行
+- [x] **Day 7: Stripe SDK 導入**: Checkout Session 作成と処理ログの先行発行
 - [ ] **Day 8: 決済成功ハンドリング**: Webhook による `status='booked'` への一貫性保持
 - [ ] **Day 9: 非正規化スナップショット**: 確定時の価格・プラン名の永続化（監査証跡）
 - [ ] **Day 10: 予約完了通知**: `Resend` 連携による自動確認メール送信
