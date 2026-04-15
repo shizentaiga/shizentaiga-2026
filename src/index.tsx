@@ -13,6 +13,7 @@ import { Top } from './pages/Top'
 import { Legal } from './pages/Legal' 
 import { ErrorPage } from './pages/Error'
 import { ContactPage } from './pages/Contact'
+import { SuccessPage } from './pages/Success'
 
 /* --- 🧱 UI COMPONENTS & PAGES --- */
 import { Services } from './pages/Services'
@@ -220,16 +221,7 @@ app.post('/services/checkout/session', async (c) => {
 app.get('/services/success', (c) => {
   const sessionId = c.req.query('session_id') || "";
   return c.render(
-    <div class="max-w-xl mx-auto py-20 text-center px-6">
-      <h2 class="text-xl font-bold text-gray-900 tracking-widest uppercase mb-4">Payment Successful</h2>
-      <p class="text-sm text-gray-500 mb-8">決済が完了しました。ご予約ありがとうございます。</p>
-      <div class="p-4 bg-gray-50 border border-gray-100 font-mono text-[10px] text-gray-400 mb-10 break-all">
-        SESSION_ID: ${sessionId}
-      </div>
-      <a href="/" class="inline-block border border-black px-8 py-3 text-[11px] font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-all">
-        Return to Top
-      </a>
-    </div>,
+    <SuccessPage sessionId={sessionId} />,
     { title: 'Payment Success | 決済完了' }
   )
 })
