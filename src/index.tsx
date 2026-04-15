@@ -43,9 +43,10 @@ app.all('*', renderer)
 
 // サンドボックス（開発・テスト用URL: /_debug）
 import sandboxBridge from './_sandbox/_bridge';
-if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
-  app.route('/_debug', sandboxBridge);
-}
+// if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+//   app.route('/_debug', sandboxBridge);
+// }
+app.route('/_debug', sandboxBridge);  // 本番環境でも_debugを表示
 
 /* --- 1. PAGES (Main Routes) --- */
 
