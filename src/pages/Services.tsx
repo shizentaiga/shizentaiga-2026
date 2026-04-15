@@ -1,12 +1,10 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレンダラー（v4.6 拡張設計モデル）。
- * [監査反映済み] 
- * A. 日付選択・プラン変更時の再送ロジックを確立。
- * B. スクリプト全体を window.load で保護。
- * [v4.6 統合]
- * - 固定値を排除し、上位（Services関数）からすべての情報を注入する設計に統一。
- * - 複数店舗・複数スタッフ展開時のクエリパラメータ対応を容易にしました。
+ * @description サービス予約ページのメインレンダラー（v4.7 グローバル・タイムゾーン対応モデル）。
+ * [設計方針]
+ * 1. サーバー環境(Cloudflare Workers)のUTC依存を排除し、日本時間(JST)基準の描画を保証。
+ * 2. ロジック(Programmer Area)と表示(Designer Area)を分離し、Props注入による疎結合化を実現。
+ * 3. クエリパラメータ(shop_id, staff_id)によるマルチテナント展開への柔軟性を確保。
  */
 
 import { Context } from 'hono'
@@ -14,19 +12,19 @@ import { html } from 'hono/html'
 import { format, addHours } from 'date-fns'
 import { BUSINESS_INFO } from '../constants/info'
 
-/* --- ⚙️ LOGIC & DATA ACCESS --- */
+/* --- ⚙️ LOGIC & DATA ACCESS: 外部データ・計算ロジック --- */
 import { generateCalendarData } from '../lib/calendar-logic'
 import { getAvailableChipsFromDB } from '../db/repositories/booking-db'
 import { getPlansFromDB } from '../db/repositories/plan-db'
 
-/* --- 🧱 UI COMPONENTS --- */
+/* --- 🧱 UI COMPONENTS: 構成部品 --- */
 import { ServicePlanList } from '../components/Booking/ServicePlanCard'
 import { CalendarSection } from '../components/Booking/CalendarSection'
 import { ConsultantSection } from '../components/Layout/ConsultantSection'
 import { BookingFooter } from '../components/Booking/BookingFooter'
 import { SlotList } from '../components/Booking/SlotList'
 
-/* --- 📄 STATIC STRINGS --- */
+/* --- 📄 STATIC STRINGS: 表示文言 --- */
 const UI_TEXT = {
   TITLE: "Service Booking",
   SUB_TITLE: "PRIVATE CONSULTATION",
@@ -40,11 +38,13 @@ const UI_TEXT = {
 const ClientScript = () => html`
   <script>
     window.addEventListener('load', function() {
+      // 1. 状態監視ユーティリティ：デバッグモニターへの反映
       function updateDebug(id, val) {
         const el = document.getElementById(id);
         if (el) el.innerText = val;
       }
 
+      // 2. 入力変更イベント：プラン選択・スロット選択時の処理
       document.addEventListener('change', function(e) {
         if (!e.target) return;
         if (e.target.name === 'plan_id') {
@@ -63,6 +63,7 @@ const ClientScript = () => html`
         }
       });
 
+      // 3. クリックイベント：カレンダー日付選択時の処理
       document.addEventListener('click', function(e) {
         const cell = e.target.closest('.calendar-day-cell');
         if (cell) {
@@ -76,6 +77,7 @@ const ClientScript = () => html`
         }
       });
 
+      // 4. データリクエスト：HTMXによるスロット情報の非同期取得
       function executeSlotRequest(date, planId) {
         if (!date || !planId) return;
         updateDebug('debug-htmx', 'Fetching...');
@@ -87,6 +89,7 @@ const ClientScript = () => html`
         }
       }
 
+      // 5. 通信監視：HTMXのエラーおよびロード完了状態のハンドリング
       document.body.addEventListener('htmx:responseError', function(evt) {
         document.getElementById('error-display')?.classList.remove('hidden');
       });
@@ -132,7 +135,6 @@ const PageLayout = async (props: {
   defaultPlanId: string,
   baseYear: number,
   baseMonth: number,
-  // ⭐️ 追加：最上位から制御するためのProps
   showDebug?: boolean 
 }) => {
   // --- CONFIGURATION ---
@@ -173,17 +175,21 @@ const PageLayout = async (props: {
 
 /**
  * 【Programmer Area】メインレンダリング関数
- * ここが「最上位」の入り口として、すべての固定値を決定します。
+ * ここが「最上位」の入り口として、すべての規定値を決定します。
  */
 export const Services = async (c: Context) => {
-  // ⭐️ 監査反映：UTC時刻に9時間を加算し、日本時間基準のカレンダー表示用Dateを作成
+  /**
+   * タイムゾーン正規化:
+   * Workers(UTC)での月末月初バグを防ぐため、物理的に9時間を加算。
+   * カレンダー描画およびJSTベースの「今日」の判定に使用する。
+   */
   const now = new Date();
   const currentDateJST = addHours(now, 9);
 
   // ⭐️ 複数店舗・スタッフ対応の準備：将来的にここを query パラメータ取得に差し替えるだけでOK
   const targetShopName = BUSINESS_INFO.shopName; 
-  const queryShopId = c.req.query('shop_id'); // URLからショップIDを取得する準備
-  const queryStaffId = c.req.query('staff_id'); // URLからスタッフIDを取得する準備
+  const queryShopId = c.req.query('shop_id'); 
+  const queryStaffId = c.req.query('staff_id'); 
 
   const [displayPlans, rawChips] = await Promise.all([
     getPlansFromDB(c, targetShopName),

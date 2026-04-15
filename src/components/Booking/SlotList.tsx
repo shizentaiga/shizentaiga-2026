@@ -1,11 +1,10 @@
 /**
  * @file SlotList.tsx
- * @description 
- * 特定の日付とプランに基づき、予約可能な時間枠（スロット）を生成・表示します。
- * [v3.8 監査反映 & デザイン最適化モデル]
- * - 監査反映: オプショナルチェイニングによる徹底したランタイムエラー防止。
- * - 監査反映: HTMX更新時のアニメーション速度を 300ms に最適化（サクサク感の向上）。
- * - デザイン: 白ベースを維持し、選択時は「黒枠＋右上ドット」で上品に表現。
+ * @description 特定の日付とプランに基づき、予約可能な時間枠（スロット）を生成・表示。
+ * [v4.7 グローバル・タイムゾーン対応モデル]
+ * - タイムゾーン設計: サーバー(UTC)環境に依存せず、JST(Asia/Tokyo)での時刻表示を保証。
+ * - 堅牢性: オプショナルチェイニングとガード節によるランタイムエラーの徹底防止。
+ * - デザイン: 300msのフェードインアニメーションによる、SPAライクな滑らかな遷移。
  */
 
 import { html } from 'hono/html'
@@ -17,30 +16,31 @@ import { calculatePossibleSlots } from '../../lib/slot-logic'
 
 /**
  * 予約枠一覧コンポーネント
+ * 選択された日付(date)とプラン(planId)に基づき、連続した空き時間を計算して表示します。
  */
 export const SlotList = async (c: Context, date: string, planId: string) => {
   
-  // 1. ガード：日付またはプランがない場合は初期状態のメッセージを表示
+  // 1. ガード節：必須パラメータが欠落している場合は案内を表示
   if (!date || !planId) {
     return html`<div class="py-12 text-center text-gray-400 text-[10px] tracking-[0.2em] uppercase">Select a date to see available times.</div>`;
   }
 
   /**
    * 2. データ収集（並列実行）
-   * info.ts の shopName を渡し、DB層で店舗隔離を維持します。
+   * info.ts の shopName をキーに、DB層で店舗固有のデータを取得。
    */
   const [chips, allPlans] = await Promise.all([
     getAvailableChipsFromDB(c, date),
     getPlansFromDB(c, BUSINESS_INFO.shopName)
   ]);
 
-  // 選択されたプランを特定
+  // プラン特定：DBから取得したプラン一覧から対象を検索
   const selectedPlan = allPlans.find(p => p.plan_id === planId);
   if (!selectedPlan) {
     return html`<div class="py-12 text-center text-red-400 text-[10px]">Plan not found for the selected shop.</div>`;
   }
 
-  // チップが存在しない（その日にスタッフの稼働がない）場合の処理
+  // 例外処理：スタッフの稼働データ（チップ）が存在しない場合
   if (!chips || chips.length === 0) {
     return html`
       <div class="py-12 border border-dashed border-gray-100 rounded-sm text-center">
@@ -51,17 +51,17 @@ export const SlotList = async (c: Context, date: string, planId: string) => {
 
   /**
    * 3. スロット計算 (Grid-Atomic Logic)
-   * [監査対応] chips?.[0] とすることで、万が一の空配列時のTypeErrorを防止します。
+   * 最小単位(grid_size_min)と必要時間(duration+buffer)から、予約可能な開始点を算出。
    */
-  const grid_size_min = chips?.[0]?.grid_size_min ?? 30;
+  const grid_size_min = chips?.[0]?.grid_size_min ?? 30; // 安全策：データ未定義時は30分をデフォルトに
   
-  // プランの合計必要時間（施術 + 予備）
+  // 必要時間の合算
   const total_needed_min = selectedPlan.duration_min + selectedPlan.buffer_min;
 
-  // Unixスタンプの配列を抽出
+  // Unixタイムスタンプ配列の生成
   const available_chips = chips.map((chip: any) => chip.start_at_unix);
 
-  // ロジック実行：連続性を満たす開始時間のUnixスタンプ配列を取得
+  // 計算ロジック実行：連続性を満たす開始時間の配列を取得
   const possibleStartAtUnixList = calculatePossibleSlots(
     available_chips,
     total_needed_min,
@@ -69,23 +69,23 @@ export const SlotList = async (c: Context, date: string, planId: string) => {
   );
 
   /**
-   * 4. 表示用データの整形
-   * [監査対応] timeZone: 'Asia/Tokyo' を明示し、実行環境に依存しないJST表示を死守。
+   * 4. 表示用データの整形（国際化対応の布石）
+   * ⭐️ 実行環境(Workers UTC)に左右されないよう、JST(Asia/Tokyo)を明示的に指定。
    */
   const availableSlots = possibleStartAtUnixList.map(unix => {
     const dateObj = new Date(unix * 1000);
     return {
-      unix: unix, // サーバー送信用（ID）
+      unix: unix, // フォーム送信用（ID）
       time: dateObj.toLocaleTimeString('ja-JP', {
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Tokyo'
+        hour12: false,       // 24時間表記に統一
+        timeZone: 'Asia/Tokyo' // JST固定
       })
     };
   });
 
-  // 5. レンダリング
+  // 5. レンダリング：デザイン定義
   return html`
     <div class="animate-in fade-in duration-300">
       <h3 class="text-[9px] font-bold tracking-[0.3em] text-gray-400 mb-8 uppercase text-center">
@@ -95,7 +95,6 @@ export const SlotList = async (c: Context, date: string, planId: string) => {
       ${availableSlots.length > 0 ? html`
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-md mx-auto">
           ${availableSlots.map((slot) => {
-            // 文字列結合による安全なID生成
             const radioId = "slot-" + slot.unix;
             
             return html`

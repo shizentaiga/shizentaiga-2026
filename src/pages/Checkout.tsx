@@ -1,14 +1,17 @@
 /**
  * @file Checkout.tsx
- * @description 予約内容の最終確認ページ。
- * [v4.6 プレゼンテーション層]
- * - 制御フラグをProps化し、上位層からのコントロールを可能にしました。
- * - URLパラメータを人間が読みやすい形式に整形して表示。
- * - Stripe決済ボタンのプレースホルダー配置。
+ * @description 予約内容の最終確認ページ（v4.7 グローバル・タイムゾーン対応モデル）。
+ * [設計方針]
+ * 1. プレゼンテーション層: 上位層から注入された確定データに基づき、予約内容を最終表示。
+ * 2. タイムゾーン設計: Cloudflare Workers(UTC)環境下でも、JST(Asia/Tokyo)での正確な時刻表示を保証。
+ * 3. ローカライズ対応: localeプロパティにより、将来的な多言語展開（海外展開）への拡張性を確保。
  */
 
 import { html } from 'hono/html'
 
+/**
+ * 予約確認コンポーネント
+ */
 export const Checkout = ({ 
   shopName,
   staffName,
@@ -19,27 +22,30 @@ export const Checkout = ({
   rawPlanId, 
   date, 
   slot,
-  // --- ⭐️ 上位層から注入される制御項目（デフォルト値を設定） ---
+  // --- ⚙️ 制御用プロパティ（デフォルト値設定済み） ---
   showDebug = true, 
   backUrl = "/services",
   locale = "ja-JP"
 }: { 
-  shopName: string;   // 追加
-  staffName: string;  // 追加
-  planName: string;   // 追加
-  duration: number;   // 追加
-  price: number;      // 追加
+  shopName: string;
+  staffName: string;
+  planName: string;
+  duration: number;
+  price: number;
   rawShopId: string; 
   rawPlanId: string; 
   date: string; 
   slot: string;
-  showDebug?: boolean; // ⭐️ オプション引数として定義
+  showDebug?: boolean; 
   backUrl?: string;
   locale?: string;
 }) => {
   
-  // スロット（UNIX時間）を読みやすい時刻形式に変換
-  // ⭐️ 監査反映：Workers(UTC)環境対策として timeZone を明示し、24時間表記に固定
+  /**
+   * 時刻整形ロジック:
+   * ⭐️ 監査反映：実行環境に依存せず、常に指定のタイムゾーン(JST)で24時間制表示を行う。
+   * 将来のタイムゾーン変数化を見据えた「ハードコーディング最小化」設計。
+   */
   const formattedTime = slot ? new Date(parseInt(slot) * 1000).toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
@@ -47,10 +53,13 @@ export const Checkout = ({
     timeZone: 'Asia/Tokyo'
   }) : 'N/A';
 
-  // 日付の表示調整 (YYYY-MM-DD -> YYYY年MM月DD日)
+  // 日付の表示調整: 日本国内向けは「YYYY年MM月DD日」形式を採用
   const formattedDate = date ? date.replace(/(\d{4})-(\d{2})-(\d{2})/, '$1年$2月$3日') : 'N/A';
 
-  // デバッグ用コンポーネント
+  /**
+   * 【Debug Area】データトレーサビリティ
+   * ページ遷移時に受け渡された生のID（rawId）を可視化。
+   */
   const debugMonitor = showDebug ? html`
     <div class="mt-8 p-4 bg-black/90 rounded-sm border border-gray-800 font-mono text-[9px] text-gray-500 shadow-xl">
       <p class="text-gray-300 border-b border-gray-800 pb-2 mb-2 font-bold tracking-tighter uppercase">Debug: Raw Data Trace</p>
