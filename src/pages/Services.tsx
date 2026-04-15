@@ -1,38 +1,33 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレンダラー（v4.8 予約整合性強化モデル）。
- * [設計方針]
- * 1. ビジネスロジックの分離: カレンダーの空き判定(所要時間考慮)は外部リポジトリへ集約。
- * 2. サーバー環境(UTC)依存の排除: 日本時間(JST)基準の描画を保証。
- * 3. 高い保守性: インターフェースをシンプルに保ち、描画(Designer)とロジック(Programmer)を分離。
+ * @description サービス予約ページのメインレンダラー。
+ * [v5.2 整合性再構築：SQL基準同期モデル]
+ * * 修正の根拠:
+ * 1. 実行環境（Local/Cloud）による Date の解釈差異を排除するため、基準時間をDBから取得。
+ * 2. test02 で正常動作が確認されている「strftime +9 hours」を唯一の正解とする。
  */
 
 import { Context } from 'hono'
 import { html } from 'hono/html'
-import { format, addHours } from 'date-fns'
 import { BUSINESS_INFO } from '../constants/info'
 
-/* --- ⚙️ LOGIC & DATA ACCESS: 外部データ・計算ロジック --- */
+/* --- ⚙️ LOGIC & DATA ACCESS --- */
 import { generateCalendarData } from '../lib/calendar-logic'
 import { getAvailableDatesByTargetPlan } from '../db/repositories/booking-db'
 import { getPlansFromDB } from '../db/repositories/plan-db'
 
-/* --- 🧱 UI COMPONENTS: 構成部品 --- */
+/* --- 🧱 UI COMPONENTS --- */
 import { ServicePlanList } from '../components/Booking/ServicePlanCard'
 import { CalendarSection } from '../components/Booking/CalendarSection'
 import { ConsultantSection } from '../components/Layout/ConsultantSection'
 import { BookingFooter } from '../components/Booking/BookingFooter'
 import { SlotList } from '../components/Booking/SlotList'
 
-/**
- * Cloudflare Workers 環境変数の型定義
- */
 type Bindings = {
   shizentaiga_db: D1Database;
   STRIPE_SECRET_KEY?: string;
 }
 
-/* --- 📄 STATIC STRINGS: 表示文言 --- */
 const UI_TEXT = {
   TITLE: "Service Booking",
   SUB_TITLE: "PRIVATE CONSULTATION",
@@ -41,8 +36,7 @@ const UI_TEXT = {
 };
 
 /**
- * クライアントサイド・スクリプト
- * HTMXを利用した動的な予約スロット更新とデバッグ表示を制御
+ * 💡 クライアントサイド・スクリプト（変更なし）
  */
 const ClientScript = () => html`
   <script>
@@ -51,10 +45,8 @@ const ClientScript = () => html`
         const el = document.getElementById(id);
         if (el) el.innerText = val;
       }
-
       document.addEventListener('change', function(e) {
         if (!e.target) return;
-        // プラン変更時：カレンダーで選択中の日付があれば、その日付の枠を再取得
         if (e.target.name === 'plan_id') {
           const selectedPlanId = e.target.value;
           updateDebug('debug-plan', selectedPlanId);
@@ -64,14 +56,12 @@ const ClientScript = () => html`
             executeSlotRequest(selectedCell.getAttribute('data-date'), selectedPlanId);
           }
         }
-        // スロット選択時：デバッグモニターに反映
         if (e.target.name === 'slot_id') {
           const displayTime = e.target.getAttribute('data-time') || "Selected";
           const unixTimestamp = e.target.value;
           updateDebug('debug-time', displayTime + ' (' + unixTimestamp + ')');
         }
       });
-
       document.addEventListener('click', function(e) {
         const cell = e.target.closest('.calendar-day-cell');
         if (cell) {
@@ -84,7 +74,6 @@ const ClientScript = () => html`
           executeSlotRequest(date, planId);
         }
       });
-
       function executeSlotRequest(date, planId) {
         if (!date || !planId) return;
         updateDebug('debug-htmx', 'Fetching...');
@@ -95,7 +84,6 @@ const ClientScript = () => html`
           });
         }
       }
-
       document.body.addEventListener('htmx:afterOnLoad', function(evt) {
         if (evt.detail.target.id === 'slot-list-container') {
            document.getElementById('error-display')?.classList.add('hidden');
@@ -107,7 +95,7 @@ const ClientScript = () => html`
 `;
 
 /**
- * 【Debug Area】監視モニターコンポーネント
+ * 💡 デバッグモニター（変更なし）
  */
 const DebugMonitor = (shopId: string, staffId: string) => html`
   <div id="debug-monitor" class="fixed bottom-4 left-4 z-50 bg-black/85 text-[9px] font-mono text-green-400 p-3 rounded-sm border border-green-500/30 w-64 shadow-2xl pointer-events-none">
@@ -123,9 +111,6 @@ const DebugMonitor = (shopId: string, staffId: string) => html`
   </div>
 `;
 
-/**
- * 【Designer Area】メインレイアウト・テンプレート
- */
 const PageLayout = async (props: {
   ctx: Context,
   shopId: string,
@@ -179,24 +164,42 @@ const PageLayout = async (props: {
 }
 
 /**
- * 【Programmer Area】メインレンダリング関数
+ * 【Programmer Area】
  */
 export const Services = async (c: Context<{ Bindings: Bindings }>) => {
-  // 1. 基準日時の設定（JST）
-  const now = new Date();
-  const currentDateJST = addHours(now, 9);
+  const db = c.env.shizentaiga_db;
+
+  // 1. 基準日時の取得（test02準拠のSQL取得）
+  // 型安全のため record 型としてキャスト
+  const serverTime = await db.prepare(`
+    SELECT 
+      strftime('%Y', 'now', '+9 hours') as year,
+      strftime('%m', 'now', '+9 hours') as month,
+      datetime('now', '+9 hours') as full_now
+  `).first<Record<string, string>>();
+
+  // 万が一DB取得に失敗した際のフォールバック
+  const currentYear = serverTime ? parseInt(serverTime.year) : new Date().getFullYear();
+  const currentMonth = serverTime ? parseInt(serverTime.month) : new Date().getMonth() + 1;
+  
+  // カレンダー生成用の Date。
+  // datetime('now', '+9 hours') の形式は "YYYY-MM-DD HH:MM:SS" なので、
+  // ISO形式に整えて JS に「これはJSTだ」と教える。
+  const jstNowDate = serverTime 
+    ? new Date(serverTime.full_now.replace(' ', 'T') + '+09:00')
+    : new Date();
 
   const targetShopName = BUSINESS_INFO.shopName; 
   const queryShopId = c.req.query('shop_id'); 
   const queryStaffId = c.req.query('staff_id'); 
 
-  // 2. 外部データの取得（プラン一覧と、プラン時間を考慮した有効な日付一覧）
+  // 2. 外部データの取得
   const [displayPlans, availableDates] = await Promise.all([
     getPlansFromDB(c, targetShopName),
     getAvailableDatesByTargetPlan(c, targetShopName)
   ]);
   
-  // 3. 規定値の決定とフォールバック
+  // 3. 規定値の決定
   const firstPlan = displayPlans[0];
   const shopId = queryShopId || firstPlan?.shop_id || "shp_zenyu"; 
   const staffId = queryStaffId || "stf_shizentaiga"; 
@@ -209,12 +212,12 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
     shopId,
     staffId,
     displayPlans,
-    calendarDays: generateCalendarData(currentDateJST),
+    calendarDays: generateCalendarData(jstNowDate), 
     availableDates,
     firstAvailableDate,
     defaultPlanId,
-    baseYear: parseInt(format(currentDateJST, 'yyyy')),
-    baseMonth: parseInt(format(currentDateJST, 'MM')),
+    baseYear: currentYear,
+    baseMonth: currentMonth,
     showDebug: true 
   });
 }

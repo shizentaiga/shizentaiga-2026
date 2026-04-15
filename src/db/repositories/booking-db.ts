@@ -1,25 +1,20 @@
 /**
  * @file /src/db/repositories/booking-db.ts
- * @description Cloudflare D1 から予約チップ（空き枠）を取得し、プランに応じたバリデーションを行うデータアクセス層。
- * [設計方針]
- * 1. 冗長なロジックの排除: 共通のチップ取得処理を基盤とし、用途別のフィルタリング関数を提供。
- * 2. 循環参照の考慮: 動的インポート等を用いて、リポジトリ間の依存関係によるエラーを防止。
- * 3. 型安全性の維持: D1Database の結果に適切なインターフェースを適用し、不透明な any を排除。
+ * @description Cloudflare D1 から予約チップを取得。
+ * [v5.1 整合性再構築：SQL主導モデル]
+ * * 根拠:
+ * 1. 【ルールA】DBサーバー(SQL)の strftime('%s', 'now') を使い、
+ * 実行環境のタイムゾーン設定に依存せず「現在のUnixTime」を絶対基準で取得して比較。
+ * 2. TS側での時刻計算を廃止し、DBとの比較を「絶対値(UnixTime) vs 絶対値」で完結させる。
  */
 
 import { Context } from 'hono'
 import { calculatePossibleSlots } from '../../lib/slot-logic'
 
-/**
- * Cloudflare Workers 環境変数の型定義
- */
 type Bindings = {
   shizentaiga_db: D1Database;
 }
 
-/**
- * 供給チップ（staff_schedules）の物理データ型
- */
 export interface AvailableChip {
   start_at_unix: number;
   date_string: string;
@@ -27,18 +22,7 @@ export interface AvailableChip {
 }
 
 /**
- * 画面表示用スロットのデータ型
- */
-export interface BookingSlot {
-  start_at_unix: number;
-  time_label: string;
-  is_available: boolean;
-}
-
-/**
- * DBから未予約のタイムチップ（供給枠）を生データとして取得する
- * @param c - Hono Context
- * @param dateString - 特定の日付で絞り込む場合は 'YYYY-MM-DD' を指定
+ * DBから未予約のタイムチップを取得する
  */
 export const getAvailableChipsFromDB = async (
   c: Context<{ Bindings: Bindings }>, 
@@ -48,18 +32,20 @@ export const getAvailableChipsFromDB = async (
     const db = c.env.shizentaiga_db;
     if (!db) return [];
 
-    const nowUnix = Math.floor(Date.now() / 1000);
-
-    // reservation_grid に slot_id が紐付いていないものが「未予約」のチップ
+    /**
+     * 【ルールA適用：SQL関数による比較】
+     * 💡 TS側で new Date() を作らず、SQL内部で 'now' を判定。
+     * 💡 start_at_unix は UTC基準の数値であるため、strftime('%s', 'now') との比較が最も正確。
+     */
     let query = `
       SELECT s.start_at_unix, s.date_string, s.grid_size_min
       FROM staff_schedules s
       LEFT JOIN reservation_grid rg ON s.schedule_id = rg.schedule_id
-      WHERE s.start_at_unix > ? 
+      WHERE s.start_at_unix > strftime('%s', 'now')
         AND rg.slot_id IS NULL
     `;
     
-    const params: (string | number)[] = [nowUnix];
+    const params: string[] = [];
 
     if (dateString) {
       query += ` AND s.date_string = ?`;
@@ -79,8 +65,7 @@ export const getAvailableChipsFromDB = async (
 
 /**
  * プランの所要時間に基づき、連続した枠が確保できる日付のみを抽出する
- * @param planDuration - プランの正味時間(分)
- * @param planBuffer - 前後のバッファ時間(分)
+ * 💡 calculatePossibleSlots には「生のUnixTime」を渡す（補正なし）
  */
 export const getValidatedDatesByPlan = async (
   c: Context<{ Bindings: Bindings }>,
@@ -93,16 +78,15 @@ export const getValidatedDatesByPlan = async (
   const totalNeeded = planDuration + planBuffer;
   const gridSize = allChips[0].grid_size_min || 30;
 
-  // 1. 日付ごとにチップ（開始UNIX時間）をまとめる
   const chipsByDate = allChips.reduce((acc, chip) => {
     if (!acc[chip.date_string]) acc[chip.date_string] = [];
     acc[chip.date_string].push(chip.start_at_unix);
     return acc;
   }, {} as Record<string, number[]>);
 
-  // 2. スロット計算ロジックを通し、1つでも予約可能な枠がある日付だけを残す
   return Object.entries(chipsByDate)
     .filter(([_, unixTimes]) => {
+      // 純粋な数値配列で判定
       const possible = calculatePossibleSlots(unixTimes, totalNeeded, gridSize);
       return possible.length > 0;
     })
@@ -111,13 +95,11 @@ export const getValidatedDatesByPlan = async (
 
 /**
  * Services.tsx からの呼び出し専用ラッパー
- * 「デフォルトプラン」の仕様に基づき、カレンダーに表示すべき有効な日付一覧を返す
  */
 export const getAvailableDatesByTargetPlan = async (
   c: Context<{ Bindings: Bindings }>,
   shopName: string
 ): Promise<{ date: string }[]> => {
-  // plan-db との循環参照を防ぐため、実行時にインポート
   const { getPlansFromDB } = await import('./plan-db');
   const plans = await getPlansFromDB(c, shopName);
   const defaultPlan = plans[0];

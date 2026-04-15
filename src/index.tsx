@@ -1,14 +1,17 @@
 /**
  * @file index.tsx
  * @description アプリケーションのエントリーポイント。
- * [v4.8 構造化リファクタリング]
- * - ビジネスロジックをハンドラー関数として分離し、ルート定義の視認性を向上。
- * - 1行1処理を基本とし、コメントを読むだけで改修箇所が特定できる設計。
+ * [v5.1 整合性再構築：トランスポート・パススルーモデル]
+ * * 修正の根拠:
+ * 1. 【ルールA】への対応: DB(SQL)との比較は下層の repository 層で行うため、ここでは関与しない。
+ * 2. 【ルールB】への対応: 表示補正(addHours)は末端のコンポーネント(SlotList/Checkout)の役割とする。
+ * 3. 結論: index.tsx は「生の UnixTime」を右から左へ流すことに徹し、計算誤差の混入を物理的に防ぐ。
  */
 
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/serve-static'
 import { renderer } from './renderer' 
+// import { getUnixTime } from 'date-fns' // 💡 補正を行わないため、ここでの利用は不要になりました
 
 /* --- 🧱 UI COMPONENTS & PAGES --- */
 import { Top } from './pages/Top'      
@@ -35,36 +38,26 @@ const app = new Hono<{ Bindings: BaseBindings }>()
 
 /* --- 0. CONFIGURATION & ASSETS --- */
 
-// 静的資産の配信
 // @ts-ignore
 app.use('/static/*', serveStatic({ root: './' }))
-
-// 全ページ共通レイアウトの適用
 app.all('*', renderer)
 
-// デバッグ用サンドボックス
 import sandboxBridge from './_sandbox/_bridge';
 app.route('/_debug', sandboxBridge); 
 
-/* --- 1. PAGE HANDLERS (表示処理の定義) --- */
+/* --- 1. PAGE HANDLERS --- */
 
-/**
- * [TOP] トップページ
- */
 const renderTopPage = (c: any) => c.render(<Top />, {
   title: '清善 泰賀 | 公式サイト',
   description: 'マネジメントコンサルタント 清善 泰賀のオフィシャルサイトです。'
 });
 
-/**
- * [LEGAL] 特定商取引法に基づく表記
- */
 const renderLegalPage = (c: any) => c.render(<Legal />, { 
   title: 'Legal Information | 特定商取引法に基づく表記' 
 });
 
 /**
- * [SERVICES] サービス一覧・予約開始ページ
+ * [SERVICES] 
  */
 const renderServicesPage = async (c: any) => {
   const content = await Services(c);
@@ -72,25 +65,27 @@ const renderServicesPage = async (c: any) => {
 };
 
 /**
- * [CHECKOUT] 予約内容最終確認ページ
+ * [CHECKOUT]
  */
 const renderCheckoutPage = async (c: any) => {
-  // 1. クエリパラメータの抽出
   const shopId = c.req.query('shop_id');
   const planId = c.req.query('plan');
-  const date = c.req.query('date');
-  const slot = c.req.query('slot');
+  const date = c.req.query('date');   // YYYY-MM-DD
+  const slot = c.req.query('slot');   // 生の UnixTime (文字列)
 
-  // 2. パラメータ不足ならエラーへ
   if (!shopId || !planId || !date || !slot) return c.redirect('/error');
 
   try {
-    // 3. DBからプラン詳細を取得
     const plan = await getPlanById(c, shopId, planId);
     if (!plan) return c.redirect('/error');
 
-    // 4. 環境設定と表示用Propsの整理
     const isDev = import.meta.env?.DEV || process.env.NODE_ENV === 'development';
+
+    /**
+     * 【ルールBへの橋渡し】
+     * 💡 ここでは補正を行わず、生の slot (UnixTime) をそのまま Checkout へ渡す。
+     * 💡 実際の「+9h 表示」は、受け取った Checkout.tsx 側で実行される。
+     */
     const checkoutProps = {
       shopName: BUSINESS_INFO.shopName,
       staffName: "清善 泰賀",
@@ -99,13 +94,12 @@ const renderCheckoutPage = async (c: any) => {
       price: plan.price_amount,
       rawShopId: shopId,
       rawPlanId: planId,
-      date,
-      slot,
+      date, 
+      slot, 
       showDebug: isDev,
       backUrl: "/services"
     };
 
-    // 5. 画面描画
     return c.render(<Checkout {...checkoutProps} />, { title: 'Confirm Booking' });
   } catch (e) {
     console.error("Checkout Error:", e);
@@ -113,26 +107,25 @@ const renderCheckoutPage = async (c: any) => {
   }
 };
 
-/* --- 2. ACTION HANDLERS (実行処理の定義) --- */
+/* --- 2. ACTION HANDLERS --- */
 
-/**
- * [STRIPE] 決済セッション作成処理
- */
 const handleStripeSession = async (c: any) => {
   const env = c.env as StripeBindings;
   const body = await c.req.parseBody();
   const baseUrl = new URL(c.req.url).origin;
 
   try {
-    // 1. POSTデータの変数化
     const { plan_name, amount, plan_id, shop_id, date, slot } = body;
     const shopIdStr = String(shop_id);
 
-    // 2. Stripe用URLの構築
     const successUrl = `${baseUrl}/services/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${baseUrl}/services/checkout?shop_id=${shopIdStr}&plan=${plan_id}&date=${date}&slot=${slot}`;
 
-    // 3. セッション作成実行
+    /**
+     * 💡 Stripeのメタデータ、戻りURLのパラメータ、共に「生の UnixTime」を維持。
+     * 💡 これにより、キャンセルして戻ってきた際も、再び同じ slot (UTC数値) で
+     * チェックアウト画面を開き直すことができる。
+     */
     const sessionUrl = await createStripeSession(
       env.STRIPE_SECRET_KEY,
       String(plan_name),
@@ -142,7 +135,6 @@ const handleStripeSession = async (c: any) => {
       { plan_id: String(plan_id), date: String(date), slot: String(slot) }
     );
 
-    // 4. Stripe決済画面へリダイレクト
     return c.redirect(sessionUrl, 303);
   } catch (e: any) {
     console.error("Stripe Error:", e.message);
@@ -150,7 +142,7 @@ const handleStripeSession = async (c: any) => {
   }
 };
 
-/* --- 3. ROUTE MAPPING (URLと処理の紐付け) --- */
+/* --- 3. ROUTE MAPPING --- */
 
 app.get('/', renderTopPage);
 app.get('/legal', renderLegalPage);
@@ -159,17 +151,19 @@ app.get('/services/checkout', renderCheckoutPage);
 app.get('/contact', (c) => c.render(<ContactPage />, { title: 'Contact' }));
 app.get('/error', (c) => c.render(<ErrorPage />, { title: 'Error' }));
 
-// HTMX: スロット更新用
 app.get('/services/slots', async (c) => {
   const date = c.req.query('date') || "";
   const planId = c.req.query('plan_id') || "";
+  
+  /**
+   * 💡 SlotList コンポーネント側でのみ、最後に表示補正を行う。
+   * 💡 index.tsx ではパラメータを渡すことに徹する。
+   */
   return c.html(await SlotList(c, date, planId));
 });
 
-// Stripe: 決済実行用
 app.post('/services/checkout/session', handleStripeSession);
 
-// Success: 決済完了
 app.get('/services/success', (c) => {
   const sessionId = c.req.query('session_id') || "";
   return c.render(<SuccessPage sessionId={sessionId} />, { title: 'Payment Success' });
