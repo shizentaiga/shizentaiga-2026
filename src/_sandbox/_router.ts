@@ -13,7 +13,7 @@ import { Hono } from 'hono';
 import { test01 } from './tests/01_hello';
 import { test02 } from './tests/02_db_check';
 import { test03 } from './tests/03_db_viewer';
-import { test04 } from './tests/04_script_test';
+import { test04 } from './tests/04_stripe';
 import { test05 } from './tests/05_webhook';
 import { test06 } from './tests/06_htmx_check';
 import { test07 } from './tests/07_htmx_version_fix';
