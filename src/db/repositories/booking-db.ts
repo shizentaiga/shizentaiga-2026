@@ -1,14 +1,14 @@
 /**
- * @file /src/db/booking-db.ts
- * @description Cloudflare D1 (shizentaiga_db) から予約情報を取得・操作するデータアクセス層。
- * [v3.0 本番仕様・厳格型定義版]
- * 修正点:
- * 1. any の排除: params 配列を (string | number)[] で定義し、ビルド時の型推論を安定化。
- * 2. Bindings の定義: Context に環境変数の型を教えることで、c.env.shizentaiga_db の存在を保証。
- * 3. ジェネリクスの活用: .all<AvailableChip>() を使用し、AS キャストを最小限に。
+ * @file /src/db/repositories/booking-db.ts
+ * @description Cloudflare D1 から予約チップ（空き枠）を取得し、プランに応じたバリデーションを行うデータアクセス層。
+ * [設計方針]
+ * 1. 冗長なロジックの排除: 共通のチップ取得処理を基盤とし、用途別のフィルタリング関数を提供。
+ * 2. 循環参照の考慮: 動的インポート等を用いて、リポジトリ間の依存関係によるエラーを防止。
+ * 3. 型安全性の維持: D1Database の結果に適切なインターフェースを適用し、不透明な any を排除。
  */
 
 import { Context } from 'hono'
+import { calculatePossibleSlots } from '../../lib/slot-logic'
 
 /**
  * Cloudflare Workers 環境変数の型定義
@@ -18,7 +18,7 @@ type Bindings = {
 }
 
 /**
- * 供給チップ（staff_schedules）のデータ型定義
+ * 供給チップ（staff_schedules）の物理データ型
  */
 export interface AvailableChip {
   start_at_unix: number;
@@ -27,7 +27,7 @@ export interface AvailableChip {
 }
 
 /**
- * 予約スロット（計算後）のデータ型定義（SlotList.tsx 等で使用）
+ * 画面表示用スロットのデータ型
  */
 export interface BookingSlot {
   start_at_unix: number;
@@ -36,9 +36,9 @@ export interface BookingSlot {
 }
 
 /**
- * 特定の日付、または未来の「未予約チップ（供給）」をすべて取得する
- * @param c - Hono Context (Bindings を指定して型安全性を確保)
- * @param dateString - 'YYYY-MM-DD' 形式
+ * DBから未予約のタイムチップ（供給枠）を生データとして取得する
+ * @param c - Hono Context
+ * @param dateString - 特定の日付で絞り込む場合は 'YYYY-MM-DD' を指定
  */
 export const getAvailableChipsFromDB = async (
   c: Context<{ Bindings: Bindings }>, 
@@ -46,18 +46,11 @@ export const getAvailableChipsFromDB = async (
 ): Promise<AvailableChip[]> => {
   try {
     const db = c.env.shizentaiga_db;
-    if (!db) {
-      console.error('[DB Error] shizentaiga_db is not found in env');
-      return [];
-    }
+    if (!db) return [];
 
     const nowUnix = Math.floor(Date.now() / 1000);
 
-    /**
-     * v3.0 ロジック:
-     * 1. s.grid_size_min を SELECT
-     * 2. reservation_grid (予約紐付け) を LEFT JOIN し、slot_id が NULL のもの = 未予約
-     */
+    // reservation_grid に slot_id が紐付いていないものが「未予約」のチップ
     let query = `
       SELECT s.start_at_unix, s.date_string, s.grid_size_min
       FROM staff_schedules s
@@ -66,7 +59,6 @@ export const getAvailableChipsFromDB = async (
         AND rg.slot_id IS NULL
     `;
     
-    // 型安全なパラメータ配列 (anyを排除)
     const params: (string | number)[] = [nowUnix];
 
     if (dateString) {
@@ -76,13 +68,61 @@ export const getAvailableChipsFromDB = async (
 
     query += ` ORDER BY s.start_at_unix ASC LIMIT 500`;
 
-    // D1のジェネリクスを使用して、結果の型を明示
     const response = await db.prepare(query).bind(...params).all<AvailableChip>();
-    
     return response.results || [];
 
   } catch (error) {
-    console.error('[DB Error] Failed to fetch available slots:', error);
+    console.error('[DB Error] Failed to fetch available chips:', error);
     return [];
   }
+};
+
+/**
+ * プランの所要時間に基づき、連続した枠が確保できる日付のみを抽出する
+ * @param planDuration - プランの正味時間(分)
+ * @param planBuffer - 前後のバッファ時間(分)
+ */
+export const getValidatedDatesByPlan = async (
+  c: Context<{ Bindings: Bindings }>,
+  planDuration: number,
+  planBuffer: number
+): Promise<{ date: string }[]> => {
+  const allChips = await getAvailableChipsFromDB(c);
+  if (allChips.length === 0) return [];
+
+  const totalNeeded = planDuration + planBuffer;
+  const gridSize = allChips[0].grid_size_min || 30;
+
+  // 1. 日付ごとにチップ（開始UNIX時間）をまとめる
+  const chipsByDate = allChips.reduce((acc, chip) => {
+    if (!acc[chip.date_string]) acc[chip.date_string] = [];
+    acc[chip.date_string].push(chip.start_at_unix);
+    return acc;
+  }, {} as Record<string, number[]>);
+
+  // 2. スロット計算ロジックを通し、1つでも予約可能な枠がある日付だけを残す
+  return Object.entries(chipsByDate)
+    .filter(([_, unixTimes]) => {
+      const possible = calculatePossibleSlots(unixTimes, totalNeeded, gridSize);
+      return possible.length > 0;
+    })
+    .map(([date]) => ({ date }));
+};
+
+/**
+ * Services.tsx からの呼び出し専用ラッパー
+ * 「デフォルトプラン」の仕様に基づき、カレンダーに表示すべき有効な日付一覧を返す
+ */
+export const getAvailableDatesByTargetPlan = async (
+  c: Context<{ Bindings: Bindings }>,
+  shopName: string
+): Promise<{ date: string }[]> => {
+  // plan-db との循環参照を防ぐため、実行時にインポート
+  const { getPlansFromDB } = await import('./plan-db');
+  const plans = await getPlansFromDB(c, shopName);
+  const defaultPlan = plans[0];
+  
+  if (!defaultPlan) return [];
+  
+  return getValidatedDatesByPlan(c, defaultPlan.duration_min, defaultPlan.buffer_min);
 };
