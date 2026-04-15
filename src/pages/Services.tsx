@@ -11,7 +11,7 @@
 
 import { Context } from 'hono'
 import { html } from 'hono/html'
-import { format } from 'date-fns'
+import { format, addHours } from 'date-fns'
 import { BUSINESS_INFO } from '../constants/info'
 
 /* --- ⚙️ LOGIC & DATA ACCESS --- */
@@ -176,7 +176,9 @@ const PageLayout = async (props: {
  * ここが「最上位」の入り口として、すべての固定値を決定します。
  */
 export const Services = async (c: Context) => {
-  const currentDate = new Date();
+  // ⭐️ 監査反映：UTC時刻に9時間を加算し、日本時間基準のカレンダー表示用Dateを作成
+  const now = new Date();
+  const currentDateJST = addHours(now, 9);
 
   // ⭐️ 複数店舗・スタッフ対応の準備：将来的にここを query パラメータ取得に差し替えるだけでOK
   const targetShopName = BUSINESS_INFO.shopName; 
@@ -201,12 +203,12 @@ export const Services = async (c: Context) => {
     shopId,
     staffId,
     displayPlans,
-    calendarDays: generateCalendarData(currentDate),
+    calendarDays: generateCalendarData(currentDateJST),
     availableDates,
     firstAvailableDate,
     defaultPlanId,
-    baseYear: parseInt(format(currentDate, 'yyyy')),
-    baseMonth: parseInt(format(currentDate, 'MM')),
+    baseYear: parseInt(format(currentDateJST, 'yyyy')),
+    baseMonth: parseInt(format(currentDateJST, 'MM')),
     showDebug: true // ⭐️ ここでデバッグの有無を一括管理
   });
 }

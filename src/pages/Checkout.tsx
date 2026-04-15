@@ -39,9 +39,12 @@ export const Checkout = ({
 }) => {
   
   // スロット（UNIX時間）を読みやすい時刻形式に変換
+  // ⭐️ 監査反映：Workers(UTC)環境対策として timeZone を明示し、24時間表記に固定
   const formattedTime = slot ? new Date(parseInt(slot) * 1000).toLocaleTimeString(locale, {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Tokyo'
   }) : 'N/A';
 
   // 日付の表示調整 (YYYY-MM-DD -> YYYY年MM月DD日)
