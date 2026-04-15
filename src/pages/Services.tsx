@@ -1,12 +1,12 @@
 /**
  * @file Services.tsx
- * @description サービス予約ページのメインレンダラー（v3.9 デバッグ制御・ID連携強化モデル）。
- * * [監査反映済み] 
- * A. 日付選択時に `data-selected` 属性を動的に付け替え、プラン変更時の再送ロジックを確立.
- * B. スクリプト全体を `window.load` で保護し、HTMX未定義エラーを防止.
- * * [デバッグ強化]
- * - フラグ `SHOW_DEBUG` によりモニターの表示/非表示を切り替え可能.
- * - SHOP_ID および STAFF_ID (固定値) をモニターに追加.
+ * @description サービス予約ページのメインレンダラー（v4.6 拡張設計モデル）。
+ * [監査反映済み] 
+ * A. 日付選択・プラン変更時の再送ロジックを確立。
+ * B. スクリプト全体を window.load で保護。
+ * [v4.6 統合]
+ * - 固定値を排除し、上位（Services関数）からすべての情報を注入する設計に統一。
+ * - 複数店舗・複数スタッフ展開時のクエリパラメータ対応を容易にしました。
  */
 
 import { Context } from 'hono'
@@ -106,7 +106,7 @@ const ClientScript = () => html`
  */
 const DebugMonitor = (shopId: string, staffId: string) => html`
   <div id="debug-monitor" class="fixed bottom-4 left-4 z-50 bg-black/85 text-[9px] font-mono text-green-400 p-3 rounded-sm border border-green-500/30 w-64 shadow-2xl pointer-events-none">
-    <p class="border-b border-green-500/30 mb-2 pb-1 text-white font-bold tracking-tighter">SYSTEM_STATE_MONITOR</p>
+    <p class="border-b border-green-500/30 mb-2 pb-1 text-white font-bold tracking-tighter uppercase">SYSTEM_STATE_MONITOR</p>
     <div class="space-y-1">
       <p>SHOP_ID : <span class="text-blue-300">${shopId}</span></p>
       <p>STAFF_ID: <span class="text-blue-300">${staffId}</span></p>
@@ -124,17 +124,19 @@ const DebugMonitor = (shopId: string, staffId: string) => html`
 const PageLayout = async (props: {
   ctx: Context,
   shopId: string,
-  staffId: string, // [v3.9] 追加
+  staffId: string, 
   displayPlans: any[],
   calendarDays: any[],
   availableDates: { date: string }[],
   firstAvailableDate: string,
   defaultPlanId: string,
   baseYear: number,
-  baseMonth: number
+  baseMonth: number,
+  // ⭐️ 追加：最上位から制御するためのProps
+  showDebug?: boolean 
 }) => {
   // --- CONFIGURATION ---
-  const SHOW_DEBUG = true; // ⭐️ ここを false にするとモニターが非表示になります
+  const { showDebug = true } = props; 
 
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
@@ -164,23 +166,32 @@ const PageLayout = async (props: {
       </div>
       ${BookingFooter(props.shopId)} 
       ${ClientScript()}
-      ${SHOW_DEBUG ? DebugMonitor(props.shopId, props.staffId) : ''}
+      ${showDebug ? DebugMonitor(props.shopId, props.staffId) : ''}
     </body>
   `;
 }
 
 /**
  * 【Programmer Area】メインレンダリング関数
+ * ここが「最上位」の入り口として、すべての固定値を決定します。
  */
 export const Services = async (c: Context) => {
   const currentDate = new Date();
+
+  // ⭐️ 複数店舗・スタッフ対応の準備：将来的にここを query パラメータ取得に差し替えるだけでOK
+  const targetShopName = BUSINESS_INFO.shopName; 
+  const queryShopId = c.req.query('shop_id'); // URLからショップIDを取得する準備
+  const queryStaffId = c.req.query('staff_id'); // URLからスタッフIDを取得する準備
+
   const [displayPlans, rawChips] = await Promise.all([
-    getPlansFromDB(c, BUSINESS_INFO.shopName),
+    getPlansFromDB(c, targetShopName),
     getAvailableChipsFromDB(c)
   ]);
   
-  const shopId = displayPlans[0]?.shop_id || "shp_unknown"; 
-  const staffId = "stf_shizentai"; // 現状は固定値、将来的にDBから取得可能
+  // データ整合性確保（固定値はここに集約し、PageLayoutには計算後の値を渡す）
+  const shopId = queryShopId || displayPlans[0]?.shop_id || "shp_zenyu"; 
+  const staffId = queryStaffId || "stf_shizentaiga"; 
+  
   const defaultPlanId = displayPlans[0]?.plan_id || "";
   const availableDates = rawChips.map(chip => ({ date: chip.date_string }));
   const firstAvailableDate = availableDates[0]?.date || "";
@@ -195,6 +206,7 @@ export const Services = async (c: Context) => {
     firstAvailableDate,
     defaultPlanId,
     baseYear: parseInt(format(currentDate, 'yyyy')),
-    baseMonth: parseInt(format(currentDate, 'MM'))
+    baseMonth: parseInt(format(currentDate, 'MM')),
+    showDebug: true // ⭐️ ここでデバッグの有無を一括管理
   });
 }
