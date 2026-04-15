@@ -13,7 +13,7 @@ import { html } from 'hono/html';
 
 type Bindings = {
   shizentaiga_db: D1Database;
-};
+}
 
 // D1から返却されるレコードの型を定義
 interface CheckoutData {

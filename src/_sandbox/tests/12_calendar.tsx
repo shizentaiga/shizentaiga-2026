@@ -8,7 +8,7 @@ import { generateCalendarData } from '../../lib/calendar-logic';
 
 type Bindings = {
   shizentaiga_db: D1Database;
-};
+}
 
 export const test12 = new Hono<{ Bindings: Bindings }>();
 

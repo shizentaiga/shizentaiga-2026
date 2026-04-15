@@ -24,6 +24,12 @@ import { ConsultantSection } from '../components/Layout/ConsultantSection'
 import { BookingFooter } from '../components/Booking/BookingFooter'
 import { SlotList } from '../components/Booking/SlotList'
 
+// 1. ファイル冒頭（20行目付近）に Bindings を追加
+type Bindings = {
+  shizentaiga_db: D1Database;
+  STRIPE_SECRET_KEY?: string; // ← ここでも ? をつけて同期
+}
+
 /* --- 📄 STATIC STRINGS: 表示文言 --- */
 const UI_TEXT = {
   TITLE: "Service Booking",
@@ -177,7 +183,8 @@ const PageLayout = async (props: {
  * 【Programmer Area】メインレンダリング関数
  * ここが「最上位」の入り口として、すべての規定値を決定します。
  */
-export const Services = async (c: Context) => {
+export const Services = async (c: Context<{ Bindings: Bindings }>) => { // ← 型を指定
+// export const Services = async (c: Context) => {
   /**
    * タイムゾーン正規化:
    * Workers(UTC)での月末月初バグを防ぐため、物理的に9時間を加算。

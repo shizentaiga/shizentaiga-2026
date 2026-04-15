@@ -15,7 +15,7 @@ interface AvailableSlot {
 
 type Bindings = {
   shizentaiga_db: D1Database;
-};
+}
 
 export const test09 = new Hono<{ Bindings: Bindings }>();
 

@@ -5,7 +5,7 @@ import { Hono } from 'hono';
  */
 type Bindings = {
   shizentaiga_db: D1Database;
-};
+}
 
 /**
  * v3.0 グリッド・アトミックモデル用の型定義

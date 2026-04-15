@@ -23,7 +23,7 @@ import { Hono } from 'hono';
 
 type Bindings = {
   shizentaiga_db: D1Database;
-};
+}
 
 export const test03 = new Hono<{ Bindings: Bindings }>();
 

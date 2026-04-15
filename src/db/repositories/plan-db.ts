@@ -16,8 +16,9 @@ import { Context } from 'hono'
 /**
  * Cloudflare Workers 環境変数の型定義
  */
+
 type Bindings = {
-  shizentaiga_db: D1Database
+  shizentaiga_db: D1Database;
 }
 
 /**

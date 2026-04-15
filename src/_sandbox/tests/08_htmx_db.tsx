@@ -11,7 +11,7 @@ import { getAvailableChipsFromDB } from '../../db/repositories/booking-db'
 
 type Bindings = {
   shizentaiga_db: D1Database;
-};
+}
 
 export const test08 = new Hono<{ Bindings: Bindings }>()
 

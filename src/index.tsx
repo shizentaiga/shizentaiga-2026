@@ -26,11 +26,16 @@ import { BUSINESS_INFO } from './constants/info'
 /**
  * [Type Definition] Cloudflare D1との接続型を定義
  */
-type Bindings = {
+type BaseBindings = {
   shizentaiga_db: D1Database;
 }
 
-const app = new Hono<{ Bindings: Bindings }>()
+// 2. index.tsx の Stripe API だけが使いたい「拡張された型」
+type StripeBindings = BaseBindings & {
+  STRIPE_SECRET_KEY: string;
+}
+
+const app = new Hono<{ Bindings: BaseBindings }>()
 
 /* --- 0. CONFIGURATION & ASSETS --- */
 

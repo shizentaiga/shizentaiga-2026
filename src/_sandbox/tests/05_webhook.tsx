@@ -8,7 +8,7 @@ import { html } from 'hono/html';
 
 type Bindings = {
   shizentaiga_db: D1Database;
-};
+}
 
 export const test05 = new Hono<{ Bindings: Bindings }>();
 

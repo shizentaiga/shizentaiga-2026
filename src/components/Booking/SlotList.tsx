@@ -14,12 +14,19 @@ import { getAvailableChipsFromDB } from '../../db/repositories/booking-db'
 import { getPlansFromDB } from '../../db/repositories/plan-db'
 import { calculatePossibleSlots } from '../../lib/slot-logic'
 
+// 1. ファイル冒頭（14行目付近）に Bindings を追加
+type Bindings = {
+  shizentaiga_db: D1Database;
+  STRIPE_SECRET_KEY?: string; // 同期の旅、最終地点です
+}
+
 /**
  * 予約枠一覧コンポーネント
  * 選択された日付(date)とプラン(planId)に基づき、連続した空き時間を計算して表示します。
  */
-export const SlotList = async (c: Context, date: string, planId: string) => {
-  
+// export const SlotList = async (c: Context, date: string, planId: string) => {
+export const SlotList = async (c: Context<{ Bindings: Bindings }>, date: string, planId: string) => {
+
   // 1. ガード節：必須パラメータが欠落している場合は案内を表示
   if (!date || !planId) {
     return html`<div class="py-12 text-center text-gray-400 text-[10px] tracking-[0.2em] uppercase">Select a date to see available times.</div>`;
