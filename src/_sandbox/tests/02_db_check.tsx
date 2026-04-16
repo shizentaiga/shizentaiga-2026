@@ -1,4 +1,26 @@
 /**
+ * 【実戦：DB不具合切り分けノウハウ v3.0】
+ * * 1. 物理排他の整合性チェック (reservation_grid)
+ * - 原因：staff_schedules（30分枠）と slots（予約）の紐付けミス。
+ * - 調査：`SELECT * FROM reservation_grid WHERE schedule_id = 'xxxx';`
+ * 1つのスケジュール枠に対して複数のスロットが紐づこうとすると、
+ * UNIQUE制約(schedule_id)により物理的にエラーを吐くのが正常な挙動。
+ * * 2. 外部キー制約の罠 (PRAGMA foreign_keys)
+ * - D1はデフォルトで外部キー制約が「OFF」の場合がある。
+ * - 対策：接続時に `PRAGMA foreign_keys = ON;` を投げる。
+ * これが効いていれば、shopsを消した際に紐づくstaffsも自動で消える(CASCADE)。
+ * * 3. 期限切れ仮予約 (expires_at)
+ * - `pending` 状態のまま放置されたレコードは、`expires_at < unix_now` で
+ * 論理的に除外するか、バッチで削除する。
+ * * --- 開発者用チートシート ---
+ * # 物理スキーマの全テーブル一覧
+ * npx wrangler d1 execute shizentaiga_db --local --command=".tables"
+ * # 特定テーブルの完全なCREATE文を表示
+ * npx wrangler d1 execute shizentaiga_db --local --command="SELECT sql FROM sqlite_master WHERE name='slots';"
+ */
+
+
+/**
  * @file 02_db_check.tsx
  * @description 
  * 多店舗・多プラン対応の「予約整合性デバッグモニター」
