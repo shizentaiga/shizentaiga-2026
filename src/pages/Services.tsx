@@ -1,7 +1,7 @@
 /**
  * @file Services.tsx
  * @description サービス予約ページのメインレンダラー。
- * [v5.7 スモールステップ：表示月を優先し、次点で未来の最短日を同期するロジック]
+ * [v5.8 ナビゲーション統合：CalendarSection2への完全移行]
  */
 
 import { Context } from 'hono'
@@ -123,6 +123,8 @@ const PageLayout = async (props: {
   baseYear: number,
   baseMonth: number,
   viewMonthStr: string,
+  prevMonthStr: string, // 追加
+  nextMonthStr: string, // 追加
   showDebug?: boolean 
 }) => {
   const { showDebug = true } = props; 
@@ -144,7 +146,15 @@ const PageLayout = async (props: {
         </section>
 
         <div id="calendar-container" class="mb-12">
-          ${CalendarSection(props.calendarDays, props.availableDates, props.firstAvailableDate, props.baseYear, props.baseMonth)}
+          ${CalendarSection(
+            props.calendarDays, 
+            props.availableDates, 
+            props.firstAvailableDate, 
+            props.baseYear, 
+            props.baseMonth,
+            props.prevMonthStr,
+            props.nextMonthStr
+          )}
         </div>
 
         <div id="slot-list-container" class="mb-12">
@@ -210,15 +220,15 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   const defaultPlanId = firstPlan?.plan_id || "";
   
   // --- [ステップ3：文脈（表示月）を重視した日付抽出ロジック] ---
-  // A. まず、表示している月内に空きがあるか探す
   const dateInMonth = availableDates.find(d => d.date.startsWith(viewMonthStr))?.date;
-  
-  // B. 月内にない場合、その月より「未来」に空きがあるか探す（過去へは戻らない）
   const dateInFuture = availableDates.find(d => d.date > viewMonthStr)?.date;
-  
-  // 決定：その月にあるか、次点で未来にあるか。どちらもなければ空文字。
   const firstAvailableDate = dateInMonth || dateInFuture || "";
-  // -----------------------------------------------------
+
+  // --- [ステップ4：ナビゲーションURLの生成] ---
+  const prevDate = new Date(viewY, viewM - 2, 1);
+  const nextDate = new Date(viewY, viewM, 1);
+  const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  const nextMonthStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
 
   // 4. レイアウトへのProps注入
   return PageLayout({
@@ -233,6 +243,8 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
     baseYear: viewY,
     baseMonth: viewM,
     viewMonthStr, 
+    prevMonthStr, // CalendarSection2 用に追加
+    nextMonthStr, // CalendarSection2 用に追加
     showDebug: true 
   });
 }

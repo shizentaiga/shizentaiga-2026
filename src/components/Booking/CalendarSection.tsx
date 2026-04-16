@@ -2,9 +2,8 @@
  * @file CalendarSection.tsx
  * @description 
  * 予約ページの「日付選択」UIを構成します。
- * [v3.0 Grid-Atomic対応]
- * 修正内容: hx-include を導入し、プランIDの送信を宣言的に変更。
- * 複雑なJavaScriptによるパラメータ同期を廃止しました。
+ * [v3.2 Navigation-Atomic対応]
+ * 修正内容: 既存の格子状レイアウトとHTMXロジックを完全維持したまま、月移動ボタンを統合。
  */
 
 import { html } from 'hono/html'
@@ -15,12 +14,18 @@ const CONFIG = {
   MAX_WIDTH: 'max-w-md',          // カレンダーの最大幅
 };
 
+/**
+ * 💡 新規：ナビゲーションボタン付きカレンダー (v2)
+ * 既存の CalendarSection の見た目と HTMX ロジックを 100% 継承・省略なし
+ */
 export const CalendarSection = (
   calendarDays: any[], 
   availableSlots: readonly any[],
   firstAvailableDate: string, 
   baseYear: number, 
-  baseMonth: number
+  baseMonth: number,
+  prevMonthStr: string,
+  nextMonthStr: string
 ) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -32,10 +37,22 @@ export const CalendarSection = (
     <section class="mb-12">
       <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">02. Select Date</h2>
       
-      <div class="mb-6 text-center">
+      <div class="mb-6 flex items-center justify-center gap-8">
+        <a href="?month=${prevMonthStr}" class="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-900">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </a>
+
         <span class="text-xl font-medium tracking-[0.2em] text-gray-900 border-b border-gray-100 pb-2 inline-block">
           ${baseYear}.${baseMonth.toString().padStart(2, '0')}
         </span>
+
+        <a href="?month=${nextMonthStr}" class="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-900">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
       </div>
 
       <div class="bg-white border border-gray-200 rounded-sm overflow-hidden mb-8 shadow-sm ${CONFIG.MAX_WIDTH} mx-auto">
@@ -71,21 +88,12 @@ export const CalendarSection = (
                    data-selected="${isSelected ? 'true' : 'false'}"
                    data-available="${isAvailable ? 'true' : 'false'}"
                    
-                   /**
-                    * ★HTMXロジック (v3.1 安定版):
-                    * 1. hx-get: スロット取得エンドポイント
-                    * 2. hx-vals: このセル固有の日付データのみをJSONで定義
-                    * 3. hx-include: ページ内の 'plan_id' ラジオボタンを自動的にリクエストに含める
-                    */
                    hx-get="/services/slots"
                    hx-vals='{"date": "${isoDateStr}"}'
                    hx-include="[name='plan_id']"
                    hx-target="#slot-list-container"
                    hx-trigger="click"
 
-                   /**
-                    * ★UIインタラクション:
-                    */
                    hx-on:click="
                     document.querySelectorAll('.calendar-day-cell').forEach(el => {
                       el.classList.remove('bg-blue-50', 'shadow-[inset_0_0_0_2px_#2c5282]', 'z-10');
@@ -95,7 +103,6 @@ export const CalendarSection = (
                     this.classList.remove('bg-white');
                     this.classList.add('bg-blue-50', 'shadow-[inset_0_0_0_2px_#2c5282]', 'z-10');
                     this.setAttribute('data-selected', 'true');
-
                     document.dispatchEvent(new Event('selectionChange', { bubbles: true }));
                    "
               >
