@@ -17,14 +17,15 @@ export const test03 = new Hono();
 const CALENDAR_CONFIG = {
   PREV_LIMIT: 2, // 今月より何ヶ月前まで戻れるか
   NEXT_LIMIT: 3, // 今月より何ヶ月先まで進めるか
-  LOCALE: "Asia/Tokyo"
+  LOCALE: "Asia/Tokyo",
+  SHOW_DEBUG: true // ★デバッグモニターのオン・オフ（true / false）
 } as const;
 
 /* ==========================================
  * 2. デザインエリア（STYLES）
  * ========================================== */
 const inlineStyles = `
-  .cal-wrapper { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 360px; margin: 20px auto; padding: 20px; border: 1px solid #f0f0f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); background: #fff; }
+  .cal-wrapper { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 360px; margin: 20px auto; padding: 20px; border: 1px solid #f0f0f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); background: #fff; position: relative; }
   .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
   .cal-btn { text-decoration: none; color: #666; background: #f8f9fa; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 14px; transition: all 0.2s; border: 1px solid #eee; }
   .cal-btn:hover { background: #e9ecef; border-color: #ddd; }
@@ -36,6 +37,16 @@ const inlineStyles = `
   .cal-sun { color: #fa5252; font-weight: 500; } 
   .cal-sat { color: #228be6; font-weight: 500; }
   .cal-other { color: #dee2e6; opacity: 0.5; }
+
+  /* デバッグモニター用スタイル */
+  .debug-monitor { 
+    position: absolute; top: 0; left: 105%; width: 200px; 
+    background: #1a1a1a; color: #00ff00; font-family: monospace; 
+    font-size: 10px; padding: 12px; border-radius: 8px; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); line-height: 1.6;
+    border: 1px solid #333;
+  }
+  @media (max-width: 800px) { .debug-monitor { position: static; width: auto; margin-top: 20px; left: 0; } }
 `;
 
 test03.get('/', (c) => {
@@ -44,7 +55,6 @@ test03.get('/', (c) => {
    * ========================================== */
 
   // A. 【JSTの現在年月を数値で取得】
-  // サーバーがUTCでも、Intlを使用してJSTの「年」「月」の数値を強制取得する
   const jstParts = new Intl.DateTimeFormat('ja-JP', {
     timeZone: CALENDAR_CONFIG.LOCALE,
     year: 'numeric',
@@ -55,7 +65,7 @@ test03.get('/', (c) => {
   const nowM = parseInt(jstParts.find(p => p.type === 'month')!.value);
 
   // B. 【基準月の決定】
-  const monthQuery = c.req.query('month'); // "2026-04"
+  const monthQuery = c.req.query('month'); 
   let targetY = nowY;
   let targetM = nowM;
 
@@ -65,14 +75,12 @@ test03.get('/', (c) => {
     targetM = qM;
   }
 
-  // C. 【ガードレール：月を総数（total months）に変換して比較】
-  // 時差の影響を受ける Date オブジェクトの比較を止め、純粋な数値計算に切り替え
+  // C. 【ガードレール：比較】
   const currentTotal = nowY * 12 + nowM;
   const targetTotal = targetY * 12 + targetM;
   const minTotal = currentTotal - CALENDAR_CONFIG.PREV_LIMIT;
   const maxTotal = currentTotal + CALENDAR_CONFIG.NEXT_LIMIT;
 
-  // 範囲外なら補正
   let finalTotal = targetTotal;
   if (finalTotal < minTotal) finalTotal = minTotal;
   if (finalTotal > maxTotal) finalTotal = maxTotal;
@@ -82,9 +90,6 @@ test03.get('/', (c) => {
   const resM = ((finalTotal - 1) % 12) + 1;
   const resMonthStr = `${resY}-${String(resM).padStart(2, '0')}`;
 
-  // D. 【表示用 Date オブジェクトの生成：ハック】
-  // 💡 「1日」を指定するとUTC環境で「前月末」に滑り落ちるリスクがあるため、
-  // 意図的に「2日」を指定。これにより、9時間のズレが起きても同じ月の中に確実に留まる。
   const baseDate = new Date(`${resMonthStr}-02`);
 
   // E. 【ナビゲーション用の値生成】
@@ -117,11 +122,28 @@ test03.get('/', (c) => {
   return c.html(
     <html>
       <head>
-        <title>Calendar Navigator - JST Fixed</title>
+        <title>Calendar Navigator - Debug Mode</title>
         <style>{inlineStyles}</style>
       </head>
       <body>
         <div class="cal-wrapper">
+          
+          {/* ★ デバッグモニター：設定がONの場合のみ表示 */}
+          {CALENDAR_CONFIG.SHOW_DEBUG && (
+            <div class="debug-monitor">
+              <div style="border-bottom: 1px solid #333; margin-bottom: 8px; padding-bottom: 4px; color: #fff; font-weight: bold;">
+                SYSTEM_STATE_MONITOR
+              </div>
+              <div>NOW_JST : {nowY}-{String(nowM).padStart(2, '0')}</div>
+              <div>QUERY   : {monthQuery || "(empty)"}</div>
+              <div>TARGET  : {resMonthStr}</div>
+              <div style="margin-top: 8px; color: #888; font-size: 8px;">
+                TOTAL_VAL : {finalTotal}<br/>
+                LIMITS    : {minTotal} 〜 {maxTotal}
+              </div>
+            </div>
+          )}
+
           <div class="cal-header">
             {canGoPrev ? (
               <a href={`?month=${prev.str}`} class="cal-btn">←</a>
