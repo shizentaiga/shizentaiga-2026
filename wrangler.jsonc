@@ -24,5 +24,10 @@
 			"database_name": "shizentaiga_db",
 			"database_id": "fcb9efbe-33b8-4a48-884f-b0dd3afcfa60"
 		}
-	]
+	],
+	// --- ここから追記 ---
+	"vars": {
+		"GOOGLE_CLIENT_ID": "479168082736-c0rosu4b1ptkr613g7osa8qm0a5ul3q9.apps.googleusercontent.com"
+	}
+	// ------------------
 }
