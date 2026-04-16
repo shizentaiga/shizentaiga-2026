@@ -29,6 +29,6 @@
     "vite": "^6.3.5",
     "vite-ssr-components": "^0.5.2",
     "vitest": "^4.1.2",
-    "wrangler": "^4.17.0"
+    "wrangler": "^4.83.0"
   }
 }
