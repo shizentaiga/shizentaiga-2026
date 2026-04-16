@@ -222,7 +222,8 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   // --- [ステップ3：文脈（表示月）を重視した日付抽出ロジック] ---
   const dateInMonth = availableDates.find(d => d.date.startsWith(viewMonthStr))?.date;
   const dateInFuture = availableDates.find(d => d.date > viewMonthStr)?.date;
-  const firstAvailableDate = dateInMonth || dateInFuture || "";
+  const firstAvailableDate = dateInMonth || "";
+  // const firstAvailableDate = dateInMonth || dateInFuture || "";
 
   // --- [ステップ4：ナビゲーションURLの生成] ---
   const prevDate = new Date(viewY, viewM - 2, 1);

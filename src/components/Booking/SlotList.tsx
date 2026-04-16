@@ -1,8 +1,7 @@
 /**
  * @file SlotList.tsx
  * @description 特定の日付とプランに基づき、予約可能な時間枠（スロット）を生成・表示。
- * [v5.2 整合性再構築：Intl タイムゾーン表示モデル]
- * - ルール: 計算はすべて生の UnixTime。表示時のみ Intl を使用して Asia/Tokyo 変換。
+ * [v5.3 スモールステップ：予約日の明記]
  */
 
 import { html } from 'hono/html'
@@ -38,9 +37,18 @@ export const SlotList = async (c: Context<{ Bindings: Bindings }>, date: string,
     return html`<div class="py-12 text-center text-red-400 text-[10px]">Plan not found.</div>`;
   }
 
+  // ★追加：表示用の日付ラベル生成 (JSTを明示的に指定してズレを防止)
+  const displayDateObj = new Date(`${date}T00:00:00+09:00`);
+  const dateLabel = new Intl.DateTimeFormat('ja-JP', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short'
+  }).format(displayDateObj);
+
   if (!chips || chips.length === 0) {
     return html`
       <div class="py-12 border border-dashed border-gray-100 rounded-sm text-center">
+        <p class="text-[9px] font-bold text-gray-900 mb-2">${dateLabel}</p>
         <p class="text-[10px] text-gray-400 tracking-[0.2em] uppercase">No availability for this date</p>
       </div>
     `;
@@ -58,16 +66,11 @@ export const SlotList = async (c: Context<{ Bindings: Bindings }>, date: string,
   );
 
   /**
-   * 4. 表示用データの整形（唯一の JST 補正ポイント）
-   * 💡 修正ポイント: 
-   * addHours ではなく Intl.DateTimeFormat を使用。
-   * これにより、「UnixTime という絶対値」を維持したまま、表示だけを日本時間で行います。
+   * 4. 表示用データの整形
    */
   const availableSlots = possibleStartAtUnixList.map(unix => {
-    // UnixTime(秒) を Date オブジェクトに変換
     const dateObj = new Date(Number(unix) * 1000);
     
-    // 日本時間(JST)の文字列を生成
     const timeLabel = new Intl.DateTimeFormat('ja-JP', {
       timeZone: 'Asia/Tokyo',
       hour: '2-digit',
@@ -76,16 +79,19 @@ export const SlotList = async (c: Context<{ Bindings: Bindings }>, date: string,
     }).format(dateObj);
 
     return {
-      unix: unix,      // フォーム送信や計算にはこれを使う（不変）
-      time: timeLabel  // ユーザーに見える時間（JST）
+      unix: unix,
+      time: timeLabel
     };
   });
 
   // 5. レンダリング
   return html`
     <div class="animate-in fade-in duration-300">
-      <h3 class="text-[9px] font-bold tracking-[0.3em] text-gray-400 mb-8 uppercase text-center">
-        Available Time Slots (${selectedPlan.duration_min} min session)
+      <h3 class="mb-8 text-center uppercase">
+        <span class="block text-[11px] font-bold tracking-[0.2em] text-gray-900 mb-1">${dateLabel}</span>
+        <span class="block text-[9px] font-medium tracking-[0.3em] text-gray-400">
+          Available Time Slots (${selectedPlan.duration_min} min session)
+        </span>
       </h3>
 
       ${availableSlots.length > 0 ? html`
