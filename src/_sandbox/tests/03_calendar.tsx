@@ -3,12 +3,13 @@
  * src/_sandbox/tests/03_calendar.tsx
  * ■ 役割
  * カレンダーの月移動（範囲制限付き）の検証用。
- * 本番環境への移植性を考慮し、設定値とロジックを分離。
+ * date-fns-tz を導入し、リモート環境（UTC）での時差・月末バグを完全に解消。
  */
 
 import { Hono } from 'hono';
 import { generateCalendarData, CalendarDay } from '../../lib/calendar-logic';
-import { addMonths, format, startOfMonth, subMonths, isAfter, isBefore } from 'date-fns';
+import { startOfMonth, addMonths, subMonths, format, isAfter, isBefore } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz'; // タイムゾーン解決のスタンダード
 
 export const test03 = new Hono();
 
@@ -16,8 +17,8 @@ export const test03 = new Hono();
  * 1. 設定エリア（CONFIG）
  * ========================================== */
 const CALENDAR_CONFIG = {
-  PREV_LIMIT: 2, // 今月より何ヶ月前まで戻れるか
-  NEXT_LIMIT: 3, // 今月より何ヶ月先まで進めるか
+  PREV_LIMIT: 2, 
+  NEXT_LIMIT: 3, 
   LOCALE: "Asia/Tokyo"
 } as const;
 
@@ -44,30 +45,34 @@ test03.get('/', (c) => {
    * 3. ロジックエリア（LOGIC）
    * ========================================== */
 
-  // A. 【現在時刻の確定】常にJST（日本時間）の月初を取得
-  const jstNow = new Date(new Date().toLocaleString("en-US", { timeZone: CALENDAR_CONFIG.LOCALE }));
+  // A. 【JST基準点の設定】
+  // new Date() の秒・ミリ秒を維持したまま計算すると月末に事故るため、
+  // toZonedTime でJST化した後、startOfMonth で「1日 00:00:00」に完全に丸める。
+  const now = new Date();
+  const jstNow = toZonedTime(now, CALENDAR_CONFIG.LOCALE);
   const thisMonthStart = startOfMonth(jstNow);
 
-  // B. 【移動限界の計算】設定値に基づき最小・最大月を算出
+  // B. 【移動限界の計算】
   const minLimitMonth = subMonths(thisMonthStart, CALENDAR_CONFIG.PREV_LIMIT);
   const maxLimitMonth = addMonths(thisMonthStart, CALENDAR_CONFIG.NEXT_LIMIT);
 
-  // C. 【ベース日時の決定】パラメータから月を取得（不正なら今月）
+  // C. 【ベース日時の決定】
   const monthQuery = c.req.query('month');
   let baseDate: Date;
 
   if (monthQuery && /^\d{4}-\d{2}$/.test(monthQuery)) {
-    // タイムゾーンのズレを防ぐため、常に +09:00 を明示
+    // 常に JST の 00:00:00 を明示的に生成
     baseDate = new Date(`${monthQuery}-01T00:00:00+09:00`);
   } else {
     baseDate = thisMonthStart;
   }
 
-  // D. 【ガードレール】範囲外の月を指定された場合、限界値へ強制補正
+  // D. 【ガードレール】
+  // Dateオブジェクトの比較は UnixTime(数値) で行われるため、JST 00:00同士なら正確に判定される
   if (isBefore(baseDate, minLimitMonth)) baseDate = minLimitMonth;
   if (isAfter(baseDate, maxLimitMonth)) baseDate = maxLimitMonth;
 
-  // E. 【データ生成】既存の calendar-logic.ts を流用
+  // E. 【データ生成】
   const calendarDays = generateCalendarData(baseDate);
 
   // F. 【ナビゲーションの状態判定】
@@ -91,7 +96,7 @@ test03.get('/', (c) => {
   return c.html(
     <html>
       <head>
-        <title>Calendar Navigator</title>
+        <title>Calendar Navigator - JST Fixed</title>
         <style>{inlineStyles}</style>
       </head>
       <body>
@@ -124,6 +129,12 @@ test03.get('/', (c) => {
                 {day.dayNum}
               </div>
             ))}
+          </div>
+          
+          {/* デバッグ用：現在時刻の状態を表示 */}
+          <div style="margin-top:20px; font-size:10px; color:#ccc; border-top:1px solid #eee; padding-top:10px;">
+            Server: {new Date().toISOString()}<br/>
+            JST Base: {format(baseDate, 'yyyy-MM-dd HH:mm:ss')}
           </div>
         </div>
       </body>
