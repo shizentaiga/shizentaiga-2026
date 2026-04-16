@@ -3,13 +3,11 @@
  * src/_sandbox/tests/03_calendar.tsx
  * ■ 役割
  * カレンダーの月移動（範囲制限付き）の検証用。
- * formatInTimeZone を導入し、リモート環境（UTCサーバー）での表示のズレを完全に解消。
+ * リモート環境（UTC）での時差ボケを物理的に防ぐ「2日基準・数値判定モデル」。
  */
 
 import { Hono } from 'hono';
 import { generateCalendarData, CalendarDay } from '../../lib/calendar-logic';
-import { startOfMonth, addMonths, subMonths, isAfter, isBefore } from 'date-fns';
-import { toZonedTime, formatInTimeZone } from 'date-fns-tz'; // タイムゾーン解決の決定打
 
 export const test03 = new Hono();
 
@@ -17,8 +15,8 @@ export const test03 = new Hono();
  * 1. 設定エリア（CONFIG）
  * ========================================== */
 const CALENDAR_CONFIG = {
-  PREV_LIMIT: 2, 
-  NEXT_LIMIT: 3, 
+  PREV_LIMIT: 2, // 今月より何ヶ月前まで戻れるか
+  NEXT_LIMIT: 3, // 今月より何ヶ月先まで進めるか
   LOCALE: "Asia/Tokyo"
 } as const;
 
@@ -45,42 +43,64 @@ test03.get('/', (c) => {
    * 3. ロジックエリア（LOGIC）
    * ========================================== */
 
-  // A. 【JST基準点の設定】
-  // サーバーがUTC 4/15 23:00 でも、JST 4/16 08:00 として扱い、かつ 00:00:00 に丸める
-  const now = new Date();
-  const jstNow = toZonedTime(now, CALENDAR_CONFIG.LOCALE);
-  const thisMonthStart = startOfMonth(jstNow);
+  // A. 【JSTの現在年月を数値で取得】
+  // サーバーがUTCでも、Intlを使用してJSTの「年」「月」の数値を強制取得する
+  const jstParts = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: CALENDAR_CONFIG.LOCALE,
+    year: 'numeric',
+    month: '2-digit'
+  }).formatToParts(new Date());
 
-  // B. 【移動限界の計算】
-  const minLimitMonth = subMonths(thisMonthStart, CALENDAR_CONFIG.PREV_LIMIT);
-  const maxLimitMonth = addMonths(thisMonthStart, CALENDAR_CONFIG.NEXT_LIMIT);
+  const nowY = parseInt(jstParts.find(p => p.type === 'year')!.value);
+  const nowM = parseInt(jstParts.find(p => p.type === 'month')!.value);
 
-  // C. 【ベース日時の決定】
-  const monthQuery = c.req.query('month');
-  let baseDate: Date;
+  // B. 【基準月の決定】
+  const monthQuery = c.req.query('month'); // "2026-04"
+  let targetY = nowY;
+  let targetM = nowM;
 
   if (monthQuery && /^\d{4}-\d{2}$/.test(monthQuery)) {
-    // 常に JST の 00:00:00 を明示的にパース
-    baseDate = new Date(`${monthQuery}-01T00:00:00+09:00`);
-  } else {
-    baseDate = thisMonthStart;
+    const [qY, qM] = monthQuery.split('-').map(Number);
+    targetY = qY;
+    targetM = qM;
   }
 
-  // D. 【ガードレール】
-  if (isBefore(baseDate, minLimitMonth)) baseDate = minLimitMonth;
-  if (isAfter(baseDate, maxLimitMonth)) baseDate = maxLimitMonth;
+  // C. 【ガードレール：月を総数（total months）に変換して比較】
+  // 時差の影響を受ける Date オブジェクトの比較を止め、純粋な数値計算に切り替え
+  const currentTotal = nowY * 12 + nowM;
+  const targetTotal = targetY * 12 + targetM;
+  const minTotal = currentTotal - CALENDAR_CONFIG.PREV_LIMIT;
+  const maxTotal = currentTotal + CALENDAR_CONFIG.NEXT_LIMIT;
 
-  // E. 【データ生成】
+  // 範囲外なら補正
+  let finalTotal = targetTotal;
+  if (finalTotal < minTotal) finalTotal = minTotal;
+  if (finalTotal > maxTotal) finalTotal = maxTotal;
+
+  // 確定した年月を復元
+  const resY = Math.floor((finalTotal - 1) / 12);
+  const resM = ((finalTotal - 1) % 12) + 1;
+  const resMonthStr = `${resY}-${String(resM).padStart(2, '0')}`;
+
+  // D. 【表示用 Date オブジェクトの生成：ハック】
+  // 💡 「1日」を指定するとUTC環境で「前月末」に滑り落ちるリスクがあるため、
+  // 意図的に「2日」を指定。これにより、9時間のズレが起きても同じ月の中に確実に留まる。
+  const baseDate = new Date(`${resMonthStr}-02`);
+
+  // E. 【ナビゲーション用の値生成】
+  const getLabel = (total: number) => {
+    const y = Math.floor((total - 1) / 12);
+    const m = ((total - 1) % 12) + 1;
+    return { y, m, str: `${y}-${String(m).padStart(2, '0')}` };
+  };
+
+  const prev = getLabel(finalTotal - 1);
+  const next = getLabel(finalTotal + 1);
+  const canGoPrev = finalTotal > minTotal;
+  const canGoNext = finalTotal < maxTotal;
+
+  // F. 【データ生成】
   const calendarDays = generateCalendarData(baseDate);
-
-  // F. 【ナビゲーションの状態判定】
-  // 💡 全ての format を formatInTimeZone に差し替え、サーバーのローカル時差を無視させる
-  const canGoPrev = isAfter(baseDate, minLimitMonth);
-  const canGoNext = isBefore(baseDate, maxLimitMonth);
-  
-  const prevMonthStr = formatInTimeZone(subMonths(baseDate, 1), CALENDAR_CONFIG.LOCALE, 'yyyy-MM');
-  const nextMonthStr = formatInTimeZone(addMonths(baseDate, 1), CALENDAR_CONFIG.LOCALE, 'yyyy-MM');
-  const currentTitle = formatInTimeZone(baseDate, CALENDAR_CONFIG.LOCALE, 'yyyy年 MM月');
 
   /* ==========================================
    * 4. テンプレートエリア（TEMPLATE）
@@ -104,15 +124,15 @@ test03.get('/', (c) => {
         <div class="cal-wrapper">
           <div class="cal-header">
             {canGoPrev ? (
-              <a href={`?month=${prevMonthStr}`} class="cal-btn">←</a>
+              <a href={`?month=${prev.str}`} class="cal-btn">←</a>
             ) : (
               <span style="visibility:hidden" class="cal-btn"></span>
             )}
             
-            <span class="cal-title">{currentTitle}</span>
+            <span class="cal-title">{resY}年 {resM}月</span>
 
             {canGoNext ? (
-              <a href={`?month=${nextMonthStr}`} class="cal-btn">→</a>
+              <a href={`?month=${next.str}`} class="cal-btn">→</a>
             ) : (
               <span style="visibility:hidden" class="cal-btn"></span>
             )}
@@ -132,10 +152,9 @@ test03.get('/', (c) => {
             ))}
           </div>
           
-          {/* デバッグ用：リモート環境での時差を可視化 */}
           <div style="margin-top:20px; font-size:10px; color:#ccc; border-top:1px solid #eee; padding-top:10px;">
             Server ISO: {new Date().toISOString()}<br/>
-            JST Fixed: {formatInTimeZone(baseDate, CALENDAR_CONFIG.LOCALE, 'yyyy-MM-dd HH:mm:ss')}
+            Target Month: {resMonthStr} (Fixed)
           </div>
         </div>
       </body>
