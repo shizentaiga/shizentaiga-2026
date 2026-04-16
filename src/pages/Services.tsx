@@ -1,7 +1,7 @@
 /**
  * @file Services.tsx
  * @description サービス予約ページのメインレンダラー。
- * [v5.4 スモールステップ：新規カレンダー生成関数への切り替え]
+ * [v5.7 スモールステップ：表示月を優先し、次点で未来の最短日を同期するロジック]
  */
 
 import { Context } from 'hono'
@@ -9,7 +9,6 @@ import { html } from 'hono/html'
 import { BUSINESS_INFO } from '../constants/info'
 
 /* --- ⚙️ LOGIC & DATA ACCESS --- */
-// 新規関数 generateCalendarDataWithNavigation を追加インポート
 import { generateCalendarData, generateCalendarDataWithNavigation } from '../lib/calendar-logic'
 import { getAvailableDatesByTargetPlan } from '../db/repositories/booking-db'
 import { getPlansFromDB } from '../db/repositories/plan-db'
@@ -34,7 +33,7 @@ const UI_TEXT = {
 };
 
 /**
- * 💡 クライアントサイド・スクリプト（変更なし）
+ * 💡 クライアントサイド・スクリプト
  */
 const ClientScript = () => html`
   <script>
@@ -95,17 +94,19 @@ const ClientScript = () => html`
 /**
  * 💡 デバッグモニター
  */
-const DebugMonitor = (shopId: string, staffId: string, viewMonth: string) => html`
+const DebugMonitor = (shopId: string, staffId: string, viewMonth: string, firstAvail: string) => html`
   <div id="debug-monitor" class="fixed bottom-4 left-4 z-50 bg-black/85 text-[9px] font-mono text-green-400 p-3 rounded-sm border border-green-500/30 w-64 shadow-2xl pointer-events-none">
     <p class="border-b border-green-500/30 mb-2 pb-1 text-white font-bold tracking-tighter uppercase">SYSTEM_STATE_MONITOR</p>
     <div class="space-y-1">
-      <p>SHOP_ID : <span class="text-blue-300">${shopId}</span></p>
-      <p>STAFF_ID: <span class="text-blue-300">${staffId}</span></p>
-      <p>VIEW_MON: <span class="text-pink-400 font-bold">${viewMonth}</span></p>
-      <p>PLAN_ID : <span id="debug-plan" class="text-yellow-400">---</span></p>
-      <p>DATE    : <span id="debug-date" class="text-yellow-400">---</span></p>
-      <p>TIME    : <span id="debug-time" class="text-pink-400">---</span></p>
-      <p>NETWORK : <span id="debug-htmx" class="text-blue-400">Idle</span></p>
+      <p>SHOP_ID    : <span class="text-blue-300">${shopId}</span></p>
+      <p>STAFF_ID   : <span class="text-blue-300">${staffId}</span></p>
+      <p>VIEW_MON   : <span class="text-pink-400 font-bold">${viewMonth}</span></p>
+      <p>FIRST_AVAIL: <span class="text-orange-400 font-bold">${firstAvail || "(Empty)"}</span></p>
+      <p class="border-t border-green-500/10 my-1"></p>
+      <p>PLAN_ID    : <span id="debug-plan" class="text-yellow-400">---</span></p>
+      <p>DATE       : <span id="debug-date" class="text-yellow-400">---</span></p>
+      <p>TIME       : <span id="debug-time" class="text-pink-400">---</span></p>
+      <p>NETWORK    : <span id="debug-htmx" class="text-blue-400">Idle</span></p>
     </div>
   </div>
 `;
@@ -158,7 +159,7 @@ const PageLayout = async (props: {
       </div>
       ${BookingFooter(props.shopId)} 
       ${ClientScript()}
-      ${showDebug ? DebugMonitor(props.shopId, props.staffId, props.viewMonthStr) : ''}
+      ${showDebug ? DebugMonitor(props.shopId, props.staffId, props.viewMonthStr, props.firstAvailableDate) : ''}
     </body>
   `;
 }
@@ -169,7 +170,7 @@ const PageLayout = async (props: {
 export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   const db = c.env.shizentaiga_db;
 
-  // 1. 基準日時の取得（システム的な「現在」を確定）
+  // 1. 基準日時の取得
   const serverTime = await db.prepare(`
     SELECT 
       strftime('%Y', 'now', '+9 hours') as year,
@@ -188,10 +189,9 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   const queryMonth = c.req.query('month'); 
   const viewMonthStr = queryMonth || `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
   
-  // --- [ステップ2：表示用基準Dateの生成（2日指定で時差事故を防止）] ---
+  // --- [ステップ2：表示用基準Dateの生成] ---
   const [viewY, viewM] = viewMonthStr.split('-').map(Number);
   const baseDateForCalendar = new Date(`${viewY}-${String(viewM).padStart(2, '0')}-02T00:00:00+09:00`);
-  // ----------------------------------------------
 
   const targetShopName = BUSINESS_INFO.shopName; 
   const queryShopId = c.req.query('shop_id'); 
@@ -208,7 +208,17 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   const shopId = queryShopId || firstPlan?.shop_id || "shp_zenyu"; 
   const staffId = queryStaffId || "stf_shizentaiga"; 
   const defaultPlanId = firstPlan?.plan_id || "";
-  const firstAvailableDate = availableDates[0]?.date || "";
+  
+  // --- [ステップ3：文脈（表示月）を重視した日付抽出ロジック] ---
+  // A. まず、表示している月内に空きがあるか探す
+  const dateInMonth = availableDates.find(d => d.date.startsWith(viewMonthStr))?.date;
+  
+  // B. 月内にない場合、その月より「未来」に空きがあるか探す（過去へは戻らない）
+  const dateInFuture = availableDates.find(d => d.date > viewMonthStr)?.date;
+  
+  // 決定：その月にあるか、次点で未来にあるか。どちらもなければ空文字。
+  const firstAvailableDate = dateInMonth || dateInFuture || "";
+  // -----------------------------------------------------
 
   // 4. レイアウトへのProps注入
   return PageLayout({
@@ -216,13 +226,10 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
     shopId,
     staffId,
     displayPlans,
-    // 【重要】カレンダー生成を新規関数 + baseDateForCalendar に切り替え
-    // 切り戻し用：calendarDays: generateCalendarData(jstNowDate),
     calendarDays: generateCalendarDataWithNavigation(baseDateForCalendar), 
     availableDates,
     firstAvailableDate,
     defaultPlanId,
-    // 表示ヘッダー（年・月）もURL指定に同期させる
     baseYear: viewY,
     baseMonth: viewM,
     viewMonthStr, 
