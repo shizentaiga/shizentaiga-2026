@@ -1,7 +1,7 @@
 /**
  * @file calendar-logic.ts
  * @description カレンダーの「日付の並び」と「見た目（CSSクラス）」を計算する純粋なロジック層。
- * [v5.6 デザイナー・ロジック分離モデル：型制約解除版]
+ * [v5.7 安定版共存モデル：新旧ロジック並列運用]
  */
 
 import { 
@@ -19,7 +19,6 @@ import {
 
 /**
  * カレンダーの各状態に応じた Tailwind CSS クラスの設定値
- * string 型を明示することで、自由なクラスの組み合わせを許可します。
  */
 const CALENDAR_STYLE_CONFIG: Record<string, any> = {
   base: "relative py-3 text-center transition-all duration-200",
@@ -72,11 +71,47 @@ const resolveDayClass = (isCurrentMonth: boolean, isToday: boolean, dayOfWeek: n
   return classes.join(" ");
 };
 
-/**
- * カレンダー表示用のデータ配列を生成
- */
+/* ==========================================================
+ * 1. 既存関数 (Stable Version) 
+ * 運用中のコードに影響を与えないため、変更・削除禁止
+ * ========================================================== */
 export const generateCalendarData = (baseDate: Date = new Date()): CalendarDay[] => {
   const now = new Date();
+  const monthStart = startOfMonth(baseDate);
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+
+  return Array.from({ length: 42 }).map((_, i) => {
+    const targetDate = addDays(calendarStart, i);
+    const isCurrentMonth = isSameMonth(targetDate, baseDate);
+    const isToday = isSameDay(targetDate, now);
+    const dayOfWeek = getDay(targetDate);
+    const dayNum = getDate(targetDate);
+    const isFirstDay = dayNum === 1;
+
+    return {
+      date: targetDate,
+      dayNum: dayNum,
+      dateStr: format(targetDate, 'yyyy-MM-dd'),
+      monthLabel: (isFirstDay || i === 0) ? `${format(targetDate, 'M')}/` : undefined,
+      isCurrentMonth,
+      isToday,
+      isSunday: dayOfWeek === 0,
+      isSaturday: dayOfWeek === 6,
+      isFirstDay,
+      className: resolveDayClass(isCurrentMonth, isToday, dayOfWeek)
+    };
+  });
+};
+
+/* ==========================================================
+ * 2. 新規関数 (v2: Navigation Version)
+ * スモールステップでの月移動対応のために新設
+ * 既存の generateCalendarData とロジックは同一だが、
+ * 将来の拡張（特定月の強制判定など）に対応可能な隔離空間として保持
+ * ========================================================== */
+export const generateCalendarDataWithNavigation = (baseDate: Date): CalendarDay[] => {
+  const now = new Date();
+  // 念のためJST基準で計算するための monthStart
   const monthStart = startOfMonth(baseDate);
   const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
 

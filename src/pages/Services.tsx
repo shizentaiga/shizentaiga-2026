@@ -1,10 +1,7 @@
 /**
  * @file Services.tsx
  * @description サービス予約ページのメインレンダラー。
- * [v5.2 整合性再構築：SQL基準同期モデル]
- * * 修正の根拠:
- * 1. 実行環境（Local/Cloud）による Date の解釈差異を排除するため、基準時間をDBから取得。
- * 2. test02 で正常動作が確認されている「strftime +9 hours」を唯一の正解とする。
+ * [v5.4 スモールステップ：新規カレンダー生成関数への切り替え]
  */
 
 import { Context } from 'hono'
@@ -12,7 +9,8 @@ import { html } from 'hono/html'
 import { BUSINESS_INFO } from '../constants/info'
 
 /* --- ⚙️ LOGIC & DATA ACCESS --- */
-import { generateCalendarData } from '../lib/calendar-logic'
+// 新規関数 generateCalendarDataWithNavigation を追加インポート
+import { generateCalendarData, generateCalendarDataWithNavigation } from '../lib/calendar-logic'
 import { getAvailableDatesByTargetPlan } from '../db/repositories/booking-db'
 import { getPlansFromDB } from '../db/repositories/plan-db'
 
@@ -95,14 +93,15 @@ const ClientScript = () => html`
 `;
 
 /**
- * 💡 デバッグモニター（変更なし）
+ * 💡 デバッグモニター
  */
-const DebugMonitor = (shopId: string, staffId: string) => html`
+const DebugMonitor = (shopId: string, staffId: string, viewMonth: string) => html`
   <div id="debug-monitor" class="fixed bottom-4 left-4 z-50 bg-black/85 text-[9px] font-mono text-green-400 p-3 rounded-sm border border-green-500/30 w-64 shadow-2xl pointer-events-none">
     <p class="border-b border-green-500/30 mb-2 pb-1 text-white font-bold tracking-tighter uppercase">SYSTEM_STATE_MONITOR</p>
     <div class="space-y-1">
       <p>SHOP_ID : <span class="text-blue-300">${shopId}</span></p>
       <p>STAFF_ID: <span class="text-blue-300">${staffId}</span></p>
+      <p>VIEW_MON: <span class="text-pink-400 font-bold">${viewMonth}</span></p>
       <p>PLAN_ID : <span id="debug-plan" class="text-yellow-400">---</span></p>
       <p>DATE    : <span id="debug-date" class="text-yellow-400">---</span></p>
       <p>TIME    : <span id="debug-time" class="text-pink-400">---</span></p>
@@ -122,6 +121,7 @@ const PageLayout = async (props: {
   defaultPlanId: string,
   baseYear: number,
   baseMonth: number,
+  viewMonthStr: string,
   showDebug?: boolean 
 }) => {
   const { showDebug = true } = props; 
@@ -158,7 +158,7 @@ const PageLayout = async (props: {
       </div>
       ${BookingFooter(props.shopId)} 
       ${ClientScript()}
-      ${showDebug ? DebugMonitor(props.shopId, props.staffId) : ''}
+      ${showDebug ? DebugMonitor(props.shopId, props.staffId, props.viewMonthStr) : ''}
     </body>
   `;
 }
@@ -169,8 +169,7 @@ const PageLayout = async (props: {
 export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   const db = c.env.shizentaiga_db;
 
-  // 1. 基準日時の取得（test02準拠のSQL取得）
-  // 型安全のため record 型としてキャスト
+  // 1. 基準日時の取得（システム的な「現在」を確定）
   const serverTime = await db.prepare(`
     SELECT 
       strftime('%Y', 'now', '+9 hours') as year,
@@ -178,16 +177,21 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
       datetime('now', '+9 hours') as full_now
   `).first<Record<string, string>>();
 
-  // 万が一DB取得に失敗した際のフォールバック
   const currentYear = serverTime ? parseInt(serverTime.year) : new Date().getFullYear();
   const currentMonth = serverTime ? parseInt(serverTime.month) : new Date().getMonth() + 1;
   
-  // カレンダー生成用の Date。
-  // datetime('now', '+9 hours') の形式は "YYYY-MM-DD HH:MM:SS" なので、
-  // ISO形式に整えて JS に「これはJSTだ」と教える。
   const jstNowDate = serverTime 
     ? new Date(serverTime.full_now.replace(' ', 'T') + '+09:00')
     : new Date();
+
+  // --- [ステップ1：URLパラメータから表示月を特定] ---
+  const queryMonth = c.req.query('month'); 
+  const viewMonthStr = queryMonth || `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+  
+  // --- [ステップ2：表示用基準Dateの生成（2日指定で時差事故を防止）] ---
+  const [viewY, viewM] = viewMonthStr.split('-').map(Number);
+  const baseDateForCalendar = new Date(`${viewY}-${String(viewM).padStart(2, '0')}-02T00:00:00+09:00`);
+  // ----------------------------------------------
 
   const targetShopName = BUSINESS_INFO.shopName; 
   const queryShopId = c.req.query('shop_id'); 
@@ -212,12 +216,16 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
     shopId,
     staffId,
     displayPlans,
-    calendarDays: generateCalendarData(jstNowDate), 
+    // 【重要】カレンダー生成を新規関数 + baseDateForCalendar に切り替え
+    // 切り戻し用：calendarDays: generateCalendarData(jstNowDate),
+    calendarDays: generateCalendarDataWithNavigation(baseDateForCalendar), 
     availableDates,
     firstAvailableDate,
     defaultPlanId,
-    baseYear: currentYear,
-    baseMonth: currentMonth,
+    // 表示ヘッダー（年・月）もURL指定に同期させる
+    baseYear: viewY,
+    baseMonth: viewM,
+    viewMonthStr, 
     showDebug: true 
   });
 }
