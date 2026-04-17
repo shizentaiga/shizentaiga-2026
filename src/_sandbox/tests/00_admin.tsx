@@ -1,5 +1,6 @@
-import { Hono } from 'hono';
+import { Hono, Context } from 'hono'; // Context を追加
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
+import { getGoogleAuthUrl, exchangeCodeForUser, verifyAdminEmail } from './lib/admin-logic';
 
 type Bindings = {
   GOOGLE_CLIENT_ID: string;
@@ -7,108 +8,138 @@ type Bindings = {
   ADMIN_EMAIL: string;
 };
 
-// index.tsx とは独立した、このファイル専用の Hono インスタンス
 export const test00 = new Hono<{ Bindings: Bindings }>();
 
-// 管理画面専用のセッションCookie名
-const ADMIN_SESSION_NAME = 'admin_auth_session';
+// ---------------------------------------------------------
+// 1. 変数・定数の定義
+// ---------------------------------------------------------
+const ADMIN_INFO = {
+  SESSION_NAME: 'admin_auth_session',
+  BASE_PATH: '/_debug/_admin',
+  get REDIRECT_URI_PATH() { return `${this.BASE_PATH}/google`; },
+  get LOGOUT_PATH() { return `${this.BASE_PATH}/logout`; },
+  STRINGS: {
+    TITLE: '管理者ログイン',
+    DASHBOARD_TITLE: '管理者ダッシュボード',
+    WELCOME_MSG: '管理者用ダッシュボードへようこそ',
+    LOGIN_BTN: 'Googleアカウントでログイン',
+    LOGOUT_BTN: 'ログアウト',
+    AUTH_SUCCESS: '認証が完了しました',
+    AUTH_REQUIRED: '現在は認証前です。管理画面を利用するにはログインしてください。',
+    WIP_MSG: '※ ここに店舗管理やスケジュール管理の機能を実装していきます。'
+  }
+};
+
+// ---------------------------------------------------------
+// 2. スタイル定義
+// ---------------------------------------------------------
+const THEME = {
+  colors: {
+    primary: '#4285F4',
+    success: '#2b9348',
+    danger: '#d90429',
+    bgLight: '#f8f9fa',
+    border: '#ddd',
+    textMain: '#333',
+    textMuted: '#666',
+    white: '#ffffff'
+  },
+  spacing: {
+    padding: '40px',
+    gap: '20px'
+  }
+};
+
+// ---------------------------------------------------------
+// 3. HTMLビューの外部関数化 (型定義を追加)
+// ---------------------------------------------------------
 
 /**
- * [管理者トップ]
+ * ログインページ
  */
-test00.get('/', (c) => {
-  const session = getCookie(c, ADMIN_SESSION_NAME);
-  const origin = new URL(c.req.url).origin;
-  
-  // Googleコンソールに登録したリダイレクトURIと完全一致させる
-  const redirectUri = `${origin}/_debug/_admin/google`;
+const renderLoginPage = (authUrl: string) => (c: Context) => c.html(
+  <div style={{ padding: THEME.spacing.padding, fontFamily: 'sans-serif', textAlign: 'center' }}>
+    <h1 style={{ color: THEME.colors.textMain }}>{ADMIN_INFO.STRINGS.TITLE}</h1>
+    <p style={{ marginBottom: THEME.spacing.gap }}>{ADMIN_INFO.STRINGS.AUTH_REQUIRED}</p>
+    <a href={authUrl} style={{ 
+      display: 'inline-block', padding: '12px 24px', background: THEME.colors.primary, 
+      color: THEME.colors.white, textDecoration: 'none', borderRadius: '5px', fontWeight: 'bold' 
+    }}>
+      {ADMIN_INFO.STRINGS.LOGIN_BTN}
+    </a>
+  </div>
+);
 
-  // 認証URLの構築
-  const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${c.env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=email%20profile&prompt=select_account`;
-
-  // 認証状態による分岐（将来的にここをPageLayoutなどに差し替え）
-  if (!session) {
-    return c.html(
-      <div style="padding: 40px; font-family: sans-serif; text-align: center;">
-        <h1>管理者ログイン</h1>
-        <p>現在は認証前です。管理画面を利用するにはログインしてください。</p>
-        <a href={googleAuthUrl} style="display: inline-block; padding: 10px 20px; background: #4285F4; color: white; text-decoration: none; border-radius: 5px;">
-          Googleアカウントでログイン
+/**
+ * ダッシュボードページ
+ */
+const renderDashboardPage = (adminEmail: string) => (c: Context) => c.html(
+  <div style={{ padding: THEME.spacing.padding, fontFamily: 'sans-serif' }}>
+    <h1 style={{ color: THEME.colors.success }}>{ADMIN_INFO.STRINGS.AUTH_SUCCESS}</h1>
+    <div style={{ background: THEME.colors.bgLight, padding: '20px', borderRadius: '8px', border: `1px solid ${THEME.colors.border}` }}>
+      <p><strong>{ADMIN_INFO.STRINGS.DASHBOARD_TITLE}</strong></p>
+      <p>ログイン: <span style={{ color: THEME.colors.primary }}>{adminEmail}</span></p>
+      <hr style={{ margin: '20px 0', border: 0, borderTop: `1px solid ${THEME.colors.border}` }} />
+      <p style={{ fontSize: '0.9rem', color: THEME.colors.textMuted }}>{ADMIN_INFO.STRINGS.WIP_MSG}</p>
+      <div style={{ marginTop: '20px' }}>
+        <a href={ADMIN_INFO.LOGOUT_PATH} style={{ 
+          color: THEME.colors.danger, fontSize: '0.85rem', textDecoration: 'none', 
+          border: `1px solid ${THEME.colors.danger}`, padding: '5px 10px', borderRadius: '4px' 
+        }}>
+          {ADMIN_INFO.STRINGS.LOGOUT_BTN}
         </a>
       </div>
-    );
-  }
-
-  // 認証完了後の表示
-  return c.html(
-    <div style="padding: 40px; font-family: sans-serif;">
-      <h1 style="color: #2b9348;">認証が完了しました</h1>
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
-        <p><strong>管理者用ダッシュボードへようこそ</strong></p>
-        <p>ログイン中のメールアドレス: <span style="color: #4285F4;">{c.env.ADMIN_EMAIL}</span></p>
-        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;" />
-        <p style="font-size: 0.9rem; color: #666;">※ ここに店舗管理やスケジュール管理の機能を実装していきます。</p>
-        <a href="/_debug/_admin/logout" style="color: #d90429; font-size: 0.8rem;">ログアウト</a>
-      </div>
     </div>
-  );
-});
+  </div>
+);
+
+// ---------------------------------------------------------
+// 4. メインルーティング
+// ---------------------------------------------------------
 
 /**
- * [OAuth Callback]
- * URI: /_debug/_admin/google
+ * コンテキスト取得用ヘルパー (any を Context に修正)
  */
+const getAdminCtx = (c: Context) => {
+  const origin = new URL(c.req.url).origin;
+  return {
+    redirectUri: `${origin}${ADMIN_INFO.REDIRECT_URI_PATH}`,
+    session: getCookie(c, ADMIN_INFO.SESSION_NAME)
+  };
+};
+
+/** [管理者トップ] */
+test00.get('/', (c) => {
+  const { redirectUri, session } = getAdminCtx(c);
+  if (!session) {
+    const authUrl = getGoogleAuthUrl(c, redirectUri);
+    return renderLoginPage(authUrl)(c);
+  }
+  return renderDashboardPage(c.env.ADMIN_EMAIL)(c);
+});
+
+/** [OAuth Callback] */
 test00.get('/google', async (c) => {
   const code = c.req.query('code');
-  const origin = new URL(c.req.url).origin;
-  const redirectUri = `${origin}/_debug/_admin/google`;
-
-  if (!code) return c.text("Authorization code not found", 400);
+  const { redirectUri } = getAdminCtx(c);
+  if (!code) return c.text("Code Missing", 400);
 
   try {
-    // 1. 認可コードをトークンに交換
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: c.env.GOOGLE_CLIENT_ID,
-        client_secret: c.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
-    });
-    const tokenData = await tokenRes.json() as any;
-
-    // 2. ユーザー情報の取得
-    const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
-    const user = await userRes.json() as any;
-
-    // 3. 管理者検証（現在は ADMIN_EMAIL との完全一致のみ）
-    if (user.email === c.env.ADMIN_EMAIL) {
-      setCookie(c, ADMIN_SESSION_NAME, 'verified_admin', {
-        path: '/',
-        httpOnly: true,
-        secure: true,
-        sameSite: 'Lax',
-        maxAge: 3600 * 24 // 24時間有効
+    const user = await exchangeCodeForUser(c, code, redirectUri);
+    if (verifyAdminEmail(c, user.email)) {
+      setCookie(c, ADMIN_INFO.SESSION_NAME, 'verified', {
+        path: '/', httpOnly: true, secure: true, sameSite: 'Lax', maxAge: 3600 * 24
       });
-      return c.redirect('/_debug/_admin');
+      return c.redirect(ADMIN_INFO.BASE_PATH);
     }
-
-    return c.text("アクセス権限がありません: " + user.email, 403);
+    return c.text("Unauthorized", 403);
   } catch (e) {
-    console.error("Auth Error:", e);
-    return c.text("Authentication error occurred", 500);
+    return c.text("Auth Error", 500);
   }
 });
 
-/**
- * [Logout]
- */
+/** [Logout] */
 test00.get('/logout', (c) => {
-  deleteCookie(c, ADMIN_SESSION_NAME, { path: '/' });
-  return c.redirect('/_debug/_admin');
+  deleteCookie(c, ADMIN_INFO.SESSION_NAME, { path: '/' });
+  return c.redirect(ADMIN_INFO.BASE_PATH);
 });
