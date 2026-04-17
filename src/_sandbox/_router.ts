@@ -12,6 +12,7 @@
  */
 
 import { Hono } from 'hono';
+import { test00 } from './tests/00_admin';
 import { test01 } from './tests/01_hello';
 import { test02 } from './tests/02_db_check';
 import { test03 } from './tests/03_calendar';
@@ -30,6 +31,7 @@ import { test14} from './tests/14_db_flow';
 export const sandboxRouter = new Hono();
 
 // --- 各テストモジュールの登録（ここを編集してテストを増やす） ---
+sandboxRouter.route('/_admin', test00); // http://localhost:5173/_debug/_adminを管理者ログイン用に設定
 sandboxRouter.route('/test01', test01);
 sandboxRouter.route('/test02', test02);
 sandboxRouter.route('/test03', test03);
