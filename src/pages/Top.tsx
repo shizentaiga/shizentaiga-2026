@@ -5,6 +5,7 @@
  * 1. 信頼性の獲得: 最初のLCP（読み込み速度）とデザインの整合性で、コンサルタントとしての専門性を直感的に伝える。
  * 2. 導線の集約: 拡散したSNSではなく、価値観の伝わる note/Qiita へトラフィックを集中させる。
  * 3. 資産の保護: htmlテンプレートを採用することで、既存のSEO資産（タグ構造）を100%維持したままモダン環境へ移行。
+ * 4. 独立性の確保: 外部プラットフォーム（リザスト等）への依存を排除し、自社ドメイン内での成約率を高める。
  */
 
 import { html } from 'hono/html'
@@ -34,7 +35,7 @@ export const Top = () => {
         <div class="service-card">
           <h3 class="font-black text-lg">個別経営診断</h3>
           <p>経営の盲点を外側から観測する、個別セッション。</p>
-          <a href="https://www.reservestock.jp/pc_reserves_v3/courses/58025" class="btn">詳細・予約</a>
+          <a href="/services" class="btn">詳細・予約</a>
         </div>
       </section>
 
@@ -70,7 +71,8 @@ export const Top = () => {
  * - 本ファイルは「情報の階層構造」に専念。具体的な余白、フォント、ボタンの反転挙動は
  * 全て src/style.css の @layer base および @layer components で一括管理。
  * 2. 画像最適化 (LCP/Core Web Vitals):
- * - profile-image-area に aspect-ratio を指定し、CLP（レイアウトシフト）を防止。
- * 3. リンク戦略:
- * - LinkedIn を追加。プロフェッショナルな背景を補強し、信頼の裏付けとする。
+ * - profile-image-area に aspect-ratio を指定し、CLS（レイアウトシフト）を防止。
+ * 3. リンク戦略の純化:
+ * - 予約導線を自社ドメイン（/services）に閉じることで、外部離脱によるコンバージョンロスを防ぐ。
+ * - LinkedIn を通じたプロフェッショナル層への信頼担保。
  */
