@@ -127,7 +127,8 @@ const PageLayout = async (props: {
   nextMonthStr: string, // 追加
   showDebug?: boolean 
 }) => {
-  const { showDebug = true } = props; 
+  // 💡 安全のためデフォルトを false に変更し、明示的な指定を優先する
+  const { showDebug = false } = props; 
 
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
@@ -180,6 +181,9 @@ const PageLayout = async (props: {
 export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   const db = c.env.shizentaiga_db;
 
+  // 💡 環境判定（NODE_ENV が development の時のみデバッグモニターを許可）
+  const isDev = (c.env as any).NODE_ENV === 'development';
+
   // 1. 基準日時の取得
   const serverTime = await db.prepare(`
     SELECT 
@@ -221,9 +225,7 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   
   // --- [ステップ3：文脈（表示月）を重視した日付抽出ロジック] ---
   const dateInMonth = availableDates.find(d => d.date.startsWith(viewMonthStr))?.date;
-  const dateInFuture = availableDates.find(d => d.date > viewMonthStr)?.date;
   const firstAvailableDate = dateInMonth || "";
-  // const firstAvailableDate = dateInMonth || dateInFuture || "";
 
   // --- [ステップ4：ナビゲーションURLの生成] ---
   const prevDate = new Date(viewY, viewM - 2, 1);
@@ -246,6 +248,6 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
     viewMonthStr, 
     prevMonthStr, // CalendarSection2 用に追加
     nextMonthStr, // CalendarSection2 用に追加
-    showDebug: true 
+    showDebug: isDev // 💡 固定値 true から環境判定変数に変更
   });
 }
