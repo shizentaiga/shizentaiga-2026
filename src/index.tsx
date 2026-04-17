@@ -68,6 +68,9 @@ const renderServicesPage = async (c: any) => {
  * [CHECKOUT]
  */
 const renderCheckoutPage = async (c: any) => {
+  // 💡 環境判定（Cloudflare Dashboard または .dev.vars の NODE_ENV を参照）
+  const isDev = (c.env as any).NODE_ENV === 'development';
+
   const shopId = c.req.query('shop_id');
   const planId = c.req.query('plan');
   const date = c.req.query('date');   // YYYY-MM-DD
@@ -78,8 +81,6 @@ const renderCheckoutPage = async (c: any) => {
   try {
     const plan = await getPlanById(c, shopId, planId);
     if (!plan) return c.redirect('/error');
-
-    const isDev = import.meta.env?.DEV || process.env.NODE_ENV === 'development';
 
     /**
      * 【ルールBへの橋渡し】
@@ -96,7 +97,7 @@ const renderCheckoutPage = async (c: any) => {
       rawPlanId: planId,
       date, 
       slot, 
-      showDebug: isDev,
+      showDebug: isDev, // 💡 判定結果を注入
       backUrl: "/services"
     };
 
