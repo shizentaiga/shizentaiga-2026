@@ -10,7 +10,9 @@ const PAGE_STYLE = {
   badge: (bg: string, text: string) => `background:${bg}; color:${text}; padding:2px 8px; border-radius:4px; font-weight:bold; font-size: 10px; white-space: nowrap;`,
   sysClock: "text-align:right; font-family:ui-monospace,monospace; background:#f1f5f9; padding:10px 15px; border-radius:8px;",
   activeRow: "background: #eff6ff; border-left: 4px solid #3b82f6;",
-  dangerCard: "padding: 20px; border: 1px solid #fed7d7; background: #fff5f5; border-radius: 8px;"
+  dangerCard: "padding: 20px; border: 1px solid #fed7d7; background: #fff5f5; border-radius: 8px;",
+  formInput: "width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem;",
+  submitBtn: "background: #3b82f6; color: white; border: none; padding: 8px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;"
 };
 
 /**
@@ -71,9 +73,36 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
     </section>
 
     <section style="${PAGE_STYLE.sectionCard}">
-      <h3 style="${PAGE_STYLE.sectionTitle}">📋 プラン一覧 (${currentShop?.shop_name || '未選択'})</h3>
+      <h3 style="${PAGE_STYLE.sectionTitle}">📋 プラン管理 (${currentShop?.shop_name || '未選択'})</h3>
+      
+      <form method="POST" action="/_debug/_admin/settings/plans" style="margin-bottom: 24px; padding: 20px; background: #f8fafc; border: 1px dashed #cbd5e0; border-radius: 12px;">
+        <h4 style="margin: 0 0 16px 0; font-size: 0.9rem;">新規プラン追加</h4>
+        <input type="hidden" name="action" value="upsert">
+        <input type="hidden" name="shop_id" value="${data.selectedShopId}">
+        
+        <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr auto; gap: 12px; align-items: flex-end;">
+          <div>
+            <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">プラン名</label>
+            <input type="text" name="plan_name" placeholder="例: プレミアム60" required style="${PAGE_STYLE.formInput}">
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">時間 (分)</label>
+            <input type="number" name="duration_min" value="60" required style="${PAGE_STYLE.formInput}">
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">インターバル (分)</label>
+            <input type="number" name="buffer_min" value="30" required style="${PAGE_STYLE.formInput}">
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">価格 (円)</label>
+            <input type="number" name="price_amount" placeholder="5000" required style="${PAGE_STYLE.formInput}">
+          </div>
+          <button type="submit" style="${PAGE_STYLE.submitBtn}">保存</button>
+        </div>
+      </form>
+
       <div style="display: grid; gap: 8px;">
-        ${data.plans.map(p => html`
+        ${data.plans.filter(p => p.plan_status !== 'archived').map(p => html`
           <div style="padding: 12px; border: 1px solid #f1f5f9; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
             <div>
               <div style="font-weight: bold; font-size: 0.9rem;">${p.plan_name}</div>
@@ -81,11 +110,26 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
                 ¥${p.price_amount.toLocaleString()} / ${p.duration_min}分 (休憩 ${p.buffer_min}分)
               </small>
             </div>
-            <span style="${PAGE_STYLE.badge(p.plan_status === 'active' ? '#dcfce7' : '#f1f5f9', p.plan_status === 'active' ? '#166534' : '#64748b')}">
-              ${p.plan_status.toUpperCase()}
-            </span>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <span style="${PAGE_STYLE.badge(p.plan_status === 'active' ? '#dcfce7' : '#f1f5f9', p.plan_status === 'active' ? '#166534' : '#64748b')}">
+                ${p.plan_status.toUpperCase()}
+              </span>
+              
+              <form method="POST" action="/_debug/_admin/settings/plans" onsubmit="return confirm('このプランをアーカイブしますか？（削除後も過去の予約データには影響しません）')">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="plan_id" value="${p.plan_id}">
+                <button type="submit" style="background: none; border: none; color: #ef4444; font-size: 0.75rem; cursor: pointer; padding: 4px;">
+                  削除
+                </button>
+              </form>
+            </div>
           </div>
         `)}
+        ${data.plans.filter(p => p.plan_status !== 'archived').length === 0 ? html`
+          <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 0.85rem;">
+            登録されているプランはありません。
+          </div>
+        ` : ''}
       </div>
     </section>
 

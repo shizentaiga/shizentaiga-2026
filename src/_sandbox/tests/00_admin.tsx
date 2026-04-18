@@ -2,14 +2,14 @@
  * 管理者ダッシュボード 司令塔モジュール
  * * 【ファイル構成マップ】
  * src/_sandbox/tests/
- * ├── 00_admin.tsx               # [本ファイル] 認証ガード、全体のルーティング、データ取得の統括
+ * ├── 00_admin.tsx                # [本ファイル] 認証ガード、全体のルーティング、データ取得の統括
  * ├── lib/
- * │   ├── admin-logic.ts         # Google OAuth 認証、管理権限チェック等のバックエンドロジック
- * │   ├── admin-views.tsx        # 全画面共通のガワ（サイドバー、タブメニュー、AdminLayout）
- * │   ├── admin-theme.ts         # カラー、共通スタイル、テキスト定数
- * │   └── pages/                 # 各タブの具体的な表示内容（独立したコンポーネント）
+ * │   ├── admin-logic.ts          # Google OAuth 認証、管理権限チェック等のバックエンドロジック
+ * │   ├── admin-views.tsx         # 全画面共通のガワ（サイドバー、タブメニュー、AdminLayout）
+ * │   ├── admin-theme.ts          # カラー、共通スタイル、テキスト定数
+ * │   └── pages/                  # 各タブの具体的な表示内容（独立したコンポーネント）
  * │       ├── reservation-page.tsx # 予約確認（チップグリッド表示）
- * │       ├── log-page.tsx         # 操作ログ（実行履歴）
+ * │       ├── log-page.tsx          # 操作ログ（実行履歴）
  * │       └── settings-page.tsx    # 基本設定（店舗・スタッフ・プラン管理）
  * └── db/
  * └── admin-repository.ts    # D1データベースとの橋渡し（複数店舗・スタッフ対応）
@@ -31,8 +31,13 @@ import { renderLogs } from './lib/pages/log-page';
 import { renderSettings } from './lib/pages/settings-page';
 
 import { ADMIN_THEME, ADMIN_STRINGS } from './lib/admin-theme';
-// リポジトリから予約取得関数を追加
-import { getAdminSettings, getAdminReservations } from './db/admin-repository';
+// リポジトリから取得・更新関数をインポート
+import { 
+  getAdminSettings, 
+  getAdminReservations, 
+  upsertPlan, 
+  deletePlan 
+} from './db/admin-repository';
 
 type Bindings = {
   shizentaiga_db: D1Database;
@@ -80,8 +85,14 @@ const getAdminCtx = (c: Context) => {
   };
 };
 
+/** 認証チェックミドルウェア的な役割 */
+const checkAuth = (c: Context) => {
+  const session = getCookie(c, ADMIN_CONFIG.SESSION_NAME);
+  return !!session;
+};
+
 // ---------------------------------------------------------
-// 4. メインルーティング
+// 4. メインルーティング (GET)
 // ---------------------------------------------------------
 
 /** 管理画面トップ：認証ガードとビューの切り替え */
@@ -98,7 +109,6 @@ test00.get('/', async (c) => {
   let content;
   switch (view) {
     case 'reservations':
-      // 予約データ（チップグリッド含む）をDBから取得して描画
       try {
         const resData = await getAdminReservations(c.env.shizentaiga_db);
         content = await renderReservations(c, resData);
@@ -112,7 +122,6 @@ test00.get('/', async (c) => {
       break;
 
     case 'settings':
-      // 基本設定（店舗・プラン情報）をDBから取得して描画
       try {
         const settingsData = await getAdminSettings(c.env.shizentaiga_db);
         content = await renderSettings(c, settingsData);
@@ -122,13 +131,49 @@ test00.get('/', async (c) => {
       break;
 
     default:
-      // デフォルトは予約確認を表示
       const defaultData = await getAdminReservations(c.env.shizentaiga_db);
       content = await renderReservations(c, defaultData);
   }
 
   return c.html(AdminLayout(view, content));
 });
+
+// ---------------------------------------------------------
+// 5. 更新系ルーティング (POST)
+// ---------------------------------------------------------
+
+/** プランの追加・削除処理 */
+test00.post('/settings/plans', async (c) => {
+  if (!checkAuth(c)) return c.text("Unauthorized", 401);
+
+  const body = await c.req.parseBody();
+  const action = body.action;
+
+  try {
+    if (action === 'upsert') {
+      await upsertPlan(c.env.shizentaiga_db, {
+        shop_id: String(body.shop_id),
+        plan_name: String(body.plan_name),
+        duration_min: Number(body.duration_min),
+        buffer_min: Number(body.buffer_min),
+        price_amount: Number(body.price_amount),
+        plan_status: 'active'
+      });
+    } else if (action === 'delete') {
+      await deletePlan(c.env.shizentaiga_db, String(body.plan_id));
+    }
+    
+    // 処理完了後、設定画面に戻す
+    return c.redirect(`${ADMIN_CONFIG.BASE_PATH}?view=settings`);
+  } catch (e) {
+    console.error('Plan Update Error:', e);
+    return c.text("Update Failed", 500);
+  }
+});
+
+// ---------------------------------------------------------
+// 6. 認証系ルーティング
+// ---------------------------------------------------------
 
 /** [GET] OAuth Callback: Google認証成功後の処理 */
 test00.get('/google', async (c) => {
