@@ -2,6 +2,10 @@
  * @file Services.tsx
  * @description サービス予約ページのメインレンダラー。
  * [v5.8 ナビゲーション統合：CalendarSection2への完全移行]
+ * * ■ 運用設計
+ * 1. プラン表示順: plan-db.ts の取得順(作成日時の昇順)をそのまま引き継ぎます。
+ * 2. デフォルト選択: 取得したリストの先頭(index:0)を初期選択プランとします。
+ * 3. 状態管理: クライアントサイドでのプラン切り替え時に HTMX を介してスロット一覧を動的更新します。
  */
 
 import { Context } from 'hono'
@@ -9,7 +13,7 @@ import { html } from 'hono/html'
 import { BUSINESS_INFO } from '../constants/info'
 
 /* --- ⚙️ LOGIC & DATA ACCESS --- */
-import { generateCalendarData, generateCalendarDataWithNavigation } from '../lib/calendar-logic'
+import { generateCalendarDataWithNavigation } from '../lib/calendar-logic'
 import { getAvailableDatesByTargetPlan } from '../db/repositories/booking-db'
 import { getPlansFromDB } from '../db/repositories/plan-db'
 
@@ -34,6 +38,7 @@ const UI_TEXT = {
 
 /**
  * 💡 クライアントサイド・スクリプト
+ * プラン変更やカレンダークリック時に HTMX を発火させます。
  */
 const ClientScript = () => html`
   <script>
@@ -92,7 +97,7 @@ const ClientScript = () => html`
 `;
 
 /**
- * 💡 デバッグモニター
+ * 💡 システム状態モニター (開発環境用)
  */
 const DebugMonitor = (shopId: string, staffId: string, viewMonth: string, firstAvail: string) => html`
   <div id="debug-monitor" class="fixed bottom-4 left-4 z-50 bg-black/85 text-[9px] font-mono text-green-400 p-3 rounded-sm border border-green-500/30 w-64 shadow-2xl pointer-events-none">
@@ -104,9 +109,9 @@ const DebugMonitor = (shopId: string, staffId: string, viewMonth: string, firstA
       <p>FIRST_AVAIL: <span class="text-orange-400 font-bold">${firstAvail || "(Empty)"}</span></p>
       <p class="border-t border-green-500/10 my-1"></p>
       <p>PLAN_ID    : <span id="debug-plan" class="text-yellow-400">---</span></p>
-      <p>DATE       : <span id="debug-date" class="text-yellow-400">---</span></p>
-      <p>TIME       : <span id="debug-time" class="text-pink-400">---</span></p>
-      <p>NETWORK    : <span id="debug-htmx" class="text-blue-400">Idle</span></p>
+      <p>DATE        : <span id="debug-date" class="text-yellow-400">---</span></p>
+      <p>TIME        : <span id="debug-time" class="text-pink-400">---</span></p>
+      <p>NETWORK     : <span id="debug-htmx" class="text-blue-400">Idle</span></p>
     </div>
   </div>
 `;
@@ -123,11 +128,10 @@ const PageLayout = async (props: {
   baseYear: number,
   baseMonth: number,
   viewMonthStr: string,
-  prevMonthStr: string, // 追加
-  nextMonthStr: string, // 追加
+  prevMonthStr: string,
+  nextMonthStr: string,
   showDebug?: boolean 
 }) => {
-  // 💡 安全のためデフォルトを false に変更し、明示的な指定を優先する
   const { showDebug = false } = props; 
 
   return html`
@@ -180,8 +184,6 @@ const PageLayout = async (props: {
  */
 export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   const db = c.env.shizentaiga_db;
-
-  // 💡 環境判定（NODE_ENV が development の時のみデバッグモニターを許可）
   const isDev = (c.env as any).NODE_ENV === 'development';
 
   // 1. 基準日時の取得
@@ -194,10 +196,6 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
 
   const currentYear = serverTime ? parseInt(serverTime.year) : new Date().getFullYear();
   const currentMonth = serverTime ? parseInt(serverTime.month) : new Date().getMonth() + 1;
-  
-  const jstNowDate = serverTime 
-    ? new Date(serverTime.full_now.replace(' ', 'T') + '+09:00')
-    : new Date();
 
   // --- [ステップ1：URLパラメータから表示月を特定] ---
   const queryMonth = c.req.query('month'); 
@@ -211,13 +209,14 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
   const queryShopId = c.req.query('shop_id'); 
   const queryStaffId = c.req.query('staff_id'); 
 
-  // 2. 外部データの取得
+  // 2. 外部データの取得 (表示順は plan-db.ts の ASC 設定に従う)
   const [displayPlans, availableDates] = await Promise.all([
     getPlansFromDB(c, targetShopName),
     getAvailableDatesByTargetPlan(c, targetShopName)
   ]);
   
   // 3. 規定値の決定
+  // 💡 リストの先頭をデフォルトとすることで、DBの追加順(ASC)と連動させます。
   const firstPlan = displayPlans[0];
   const shopId = queryShopId || firstPlan?.shop_id || "shp_zenyu"; 
   const staffId = queryStaffId || "stf_shizentaiga"; 
@@ -246,8 +245,8 @@ export const Services = async (c: Context<{ Bindings: Bindings }>) => {
     baseYear: viewY,
     baseMonth: viewM,
     viewMonthStr, 
-    prevMonthStr, // CalendarSection2 用に追加
-    nextMonthStr, // CalendarSection2 用に追加
-    showDebug: isDev // 💡 固定値 true から環境判定変数に変更
+    prevMonthStr,
+    nextMonthStr,
+    showDebug: isDev
   });
 }

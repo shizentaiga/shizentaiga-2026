@@ -1,11 +1,14 @@
 /**
  * @file /src/db/plan-db.ts
  * @description plans テーブル（マスターデータ）からプラン一覧を取得するデータアクセス層。
- * v3.2 スキーマ（Grid-Atomic Model）に準拠。
- * * [v3.2 移行フェーズ]
- * - 重複リスク回避のため、shop_id による抽出関数(getPlansByShopId)を追加。
- * - 既存の shop_name による抽出(getPlansFromDB)も互換性のために維持。
- * - index.tsx 等での型不一致エラーを防ぐため、ジェネリクスによる Bindings 解決を導入。
+ * * 【基本仕様】
+ * - v3.2 スキーマ（Grid-Atomic Model）に準拠。
+ * - 表示順序: 運用上の利便性を考慮し、一律「作成日時の昇順（追加した順）」で取得します。
+ * (古いプランを削除して作り直すことで、擬似的に表示順を調整可能な設計です)
+ * * 【メンテナンス履歴】
+ * - v3.2: shop_id による抽出関数(getPlansByShopId)を追加し、多店舗展開時の重複リスクを回避。
+ * - v3.2: 既存の Services.tsx との互換性維持のため、shop_name による抽出も残存。
+ * - v3.2: 型安全向上のため、ジェネリクスによる Bindings 解決を導入。
  */
 
 import { Context } from 'hono'
@@ -17,6 +20,7 @@ type Bindings = {
   shizentaiga_db: D1Database;
 }
 
+/** 1リクエストで取得するプランの最大件数 */
 const MAX_PLAN_COUNT = 100;
 
 /**
@@ -38,13 +42,14 @@ export interface ServicePlan {
 
 /**
  * ------------------------------------------------------------------
- * 1. 🆕 NEW FUNCTIONS (Shop ID Based)
+ * 1. 🆕 モダン関数 (ショップIDベース)
  * ------------------------------------------------------------------
+ * 推奨される取得方法です。shop_id をキーに安全にプランを抽出します。
  */
 
 /**
  * データベースから特定の「ショップID」に紐づく公開中のプラン一覧を取得する
- * <T extends Bindings> を使うことで、c.env の型を安全に保ちつつ呼び出し側の型定義を許容します。
+ * [表示順] created_at ASC (追加した順)
  */
 export const getPlansByShopId = async <T extends Bindings>(
   c: Context<{ Bindings: T }>,
@@ -69,10 +74,10 @@ export const getPlansByShopId = async <T extends Bindings>(
         buffer_min, price_amount, plan_status, created_at, updated_at
       FROM plans 
       WHERE shop_id = ? AND plan_status = 'active' 
-      ORDER BY created_at DESC LIMIT ?
+      ORDER BY created_at ASC LIMIT ?
     `;
 
-    // db が D1Database であることが型推論されるため、ジェネリクスが使用可能になります
+    // 実行時に ServicePlan 型として結果を受け取ります
     const response = await db.prepare(query)
       .bind(shop_id, MAX_PLAN_COUNT)
       .all<ServicePlan>();
@@ -99,11 +104,16 @@ export const getPlanById = async <T extends Bindings>(
 
 /**
  * ------------------------------------------------------------------
- * 2. 🏛️ LEGACY FUNCTIONS (Shop Name Based)
+ * 2. 🏛️ レガシー関数 (ショップ名ベース)
  * ------------------------------------------------------------------
- * 既存の Services.tsx 等の動作を担保するために維持します。
+ * 既存の Services.tsx 等の動作を担保するために維持しています。
+ * 内部的には shops テーブルと JOIN して ID を特定し、プランを取得します。
  */
 
+/**
+ * ショップ名からプラン一覧を取得する
+ * [表示順] p.created_at ASC (追加した順)
+ */
 export const getPlansFromDB = async (
   c: Context<{ Bindings: Bindings }>,
   shop_name: string 
@@ -124,7 +134,7 @@ export const getPlansFromDB = async (
       FROM plans p
       INNER JOIN shops s ON p.shop_id = s.shop_id
       WHERE s.shop_name = ? AND p.plan_status = 'active'
-      ORDER BY p.created_at DESC LIMIT ?
+      ORDER BY p.created_at ASC LIMIT ?
     `;
 
     const response = await db.prepare(query)

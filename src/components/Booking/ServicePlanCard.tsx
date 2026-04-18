@@ -1,23 +1,21 @@
 /**
  * @file ServicePlanCard.tsx
  * @description 予約可能なプラン一覧（01. Select Plan）をレンダリングするコンポーネント。
- * * --- 今回の教訓と修正のポイント ---
- * 1. 【HTMXとのデータ連携】:
- * hx-include が値を拾うためには、HTML要素が name 属性と value を持っている必要があります。
- * div の data 属性ではなく、<input> 要素（今回は radio）を使うのが正解です。
- * 2. 【labelタグの活用】:
- * カード全体を <label> にすることで、中のラジオボタンを hidden にしても、
- * カードをクリックするだけで「値の選択」が成立します。
- * 3. 【Tailwindの条件付きスタイル】:
- * has-checked モディファイアを使用し、JavaScriptを使わずに
- * 「選択されたプランの枠線を青くする」というUIフィードバックを実現しました。
- * 4. 【ビジネスロジックの埋め込み】:
- * 相談プラン(duration=0)や無料プラン(price=0)を「要相談」として判定し、
- * BookingFooterへ「決済が必要か否か」を伝える data-is-consulting 属性を付与しました。
+ * * ■ 設計仕様
+ * 1. 【データ連携】: <input type="radio"> を使用。HTMXの hx-include が name/value を拾える構造。
+ * 2. 【UI/UX】: <label> でカード全体を囲むことで、クリック領域を最大化。
+ * 3. 【ステートレス表現】: Tailwind の has-checked モディファイアを活用し、CSSのみで選択状態の背景・枠線を制御。
+ * 4. 【ビジネスロジック】: 
+ * - 相談プラン(duration=0) または 無料(price=0) を「要相談」と自動判定。
+ * - 配列の先頭（index === 0）を初期選択状態とする。
  */
 
 import { html } from 'hono/html'
 
+/**
+ * サービスプラン一覧のレンダリング
+ * @param services DBから取得したプラン配列。表示順は呼び出し元（plan-db等）のクエリに依存。
+ */
 export const ServicePlanList = (services: readonly any[]) => {
   // プラン未登録時のゼロデータ表示
   if (!services || services.length === 0) {
@@ -43,7 +41,7 @@ export const ServicePlanList = (services: readonly any[]) => {
         // 単位の制御: 相談プランなら「1ヶ月〜」等の期間表記、通常なら「分」
         const displaySuffix = isConsulting ? '1ヶ月〜' : '分';
         
-        // 初回レンダリング時の選択状態（最初の要素をデフォルトに）
+        // 初回レンダリング時の選択状態（配列の最初をデフォルトに）
         const isSelected = index === 0;
 
         return html`
