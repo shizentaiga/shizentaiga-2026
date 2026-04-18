@@ -25,10 +25,10 @@ import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { getGoogleAuthUrl, exchangeCodeForUser, verifyAdminEmail } from './lib/admin-logic';
 import { AdminLayout } from './lib/admin-views';
 
-// 既存のインポートを修正
-// import { renderReservations, renderLogs, renderSettings } from './lib/admin-pages';
-import { renderReservations, renderLogs } from './lib/admin-pages'; 
-import { renderSettings } from './lib/pages/settings-page'; // こちらから読み込む
+// 旧ファイルのインポートを削除し、pages/ からのみ読み込む
+import { renderReservations } from './lib/pages/reservation-page';
+import { renderLogs } from './lib/pages/log-page';
+import { renderSettings } from './lib/pages/settings-page';
 
 import { ADMIN_THEME, ADMIN_STRINGS } from './lib/admin-theme';
 // リポジトリから予約取得関数を追加
