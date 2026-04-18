@@ -1,17 +1,38 @@
 /**
  * 管理者ダッシュボード 司令塔モジュール
- * 認証ガード、ルーティング、およびリポジトリを介したデータ取得を制御します。
+ * * 【ファイル構成マップ】
+ * src/_sandbox/tests/
+ * ├── 00_admin.tsx               # [本ファイル] 認証ガード、全体のルーティング、データ取得の統括
+ * ├── lib/
+ * │   ├── admin-logic.ts         # Google OAuth 認証、管理権限チェック等のバックエンドロジック
+ * │   ├── admin-views.tsx        # 全画面共通のガワ（サイドバー、タブメニュー、AdminLayout）
+ * │   ├── admin-theme.ts         # カラー、共通スタイル、テキスト定数
+ * │   └── pages/                 # 各タブの具体的な表示内容（独立したコンポーネント）
+ * │       ├── reservation-page.tsx # 予約確認（チップグリッド表示）
+ * │       ├── log-page.tsx         # 操作ログ（実行履歴）
+ * │       └── settings-page.tsx    # 基本設定（店舗・スタッフ・プラン管理）
+ * └── db/
+ * └── admin-repository.ts    # D1データベースとの橋渡し（複数店舗・スタッフ対応）
+ * * 【主な責務】
+ * 1. 認証ガード: セッションの有無を確認し、未認証時はログインページへ誘導
+ * 2. ルーティング: クエリパラメータ(?view=)に基づき表示するページを切り替え
+ * 3. データ注入: リポジトリから取得した動的データを各ページコンポーネントへ提供
  */
 
 import { Hono, Context } from 'hono';
-import { html } from 'hono/html'; // ← これを追加
+import { html } from 'hono/html';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { getGoogleAuthUrl, exchangeCodeForUser, verifyAdminEmail } from './lib/admin-logic';
 import { AdminLayout } from './lib/admin-views';
-import { renderReservations, renderLogs, renderSettings } from './lib/admin-pages';
+
+// 既存のインポートを修正
+// import { renderReservations, renderLogs, renderSettings } from './lib/admin-pages';
+import { renderReservations, renderLogs } from './lib/admin-pages'; 
+import { renderSettings } from './lib/pages/settings-page'; // こちらから読み込む
+
 import { ADMIN_THEME, ADMIN_STRINGS } from './lib/admin-theme';
-// リポジトリのインポートを追加
-import { getAdminSettings } from './db/admin-repository';
+// リポジトリから予約取得関数を追加
+import { getAdminSettings, getAdminReservations } from './db/admin-repository';
 
 type Bindings = {
   shizentaiga_db: D1Database;
@@ -63,6 +84,7 @@ const getAdminCtx = (c: Context) => {
 // 4. メインルーティング
 // ---------------------------------------------------------
 
+/** 管理画面トップ：認証ガードとビューの切り替え */
 test00.get('/', async (c) => {
   const { redirectUri, session } = getAdminCtx(c);
   
@@ -76,7 +98,13 @@ test00.get('/', async (c) => {
   let content;
   switch (view) {
     case 'reservations':
-      content = await renderReservations(c);
+      // 予約データ（チップグリッド含む）をDBから取得して描画
+      try {
+        const resData = await getAdminReservations(c.env.shizentaiga_db);
+        content = await renderReservations(c, resData);
+      } catch (e) {
+        content = html`<div style="padding:20px; color:red;">予約データの取得中にエラーが発生しました。</div>`;
+      }
       break;
 
     case 'logs':
@@ -84,23 +112,25 @@ test00.get('/', async (c) => {
       break;
 
     case 'settings':
-      // 【重要】リポジトリ経由でDBから設定情報を取得
+      // 基本設定（店舗・プラン情報）をDBから取得して描画
       try {
         const settingsData = await getAdminSettings(c.env.shizentaiga_db);
         content = await renderSettings(c, settingsData);
       } catch (e) {
-        content = html`<div style="padding:20px; color:red;">DB接続エラーが発生しました。</div>`;
+        content = html`<div style="padding:20px; color:red;">設定データの取得中にエラーが発生しました。</div>`;
       }
       break;
 
     default:
-      content = await renderReservations(c);
+      // デフォルトは予約確認を表示
+      const defaultData = await getAdminReservations(c.env.shizentaiga_db);
+      content = await renderReservations(c, defaultData);
   }
 
   return c.html(AdminLayout(view, content));
 });
 
-/** [GET] OAuth Callback */
+/** [GET] OAuth Callback: Google認証成功後の処理 */
 test00.get('/google', async (c) => {
   const code = c.req.query('code');
   const { redirectUri } = getAdminCtx(c);
@@ -120,7 +150,7 @@ test00.get('/google', async (c) => {
   }
 });
 
-/** [GET] Logout */
+/** [GET] Logout: セッション破棄 */
 test00.get('/logout', (c) => {
   deleteCookie(c, ADMIN_CONFIG.SESSION_NAME, { path: '/' });
   return c.redirect(ADMIN_CONFIG.BASE_PATH);

@@ -1,102 +1,20 @@
-// src/_sandbox/tests/lib/admin-pages.tsx
 import { Context } from 'hono';
 import { html } from 'hono/html';
-import { AdminSettingsData, AdminReservationData } from '../db/admin-repository';
-import { calculatePossibleSlots } from '../../../lib/slot-logic';
+import { AdminSettingsData } from '../../db/admin-repository';
 
-// --- スタイル定義 ---
+// --- 設定ページ専用のスタイル定義 ---
 const PAGE_STYLE = {
   headerContainer: "display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;",
   sectionCard: "background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);",
   sectionTitle: "font-size: 0.85rem; font-weight: 800; color: #64748b; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.1em; display: flex; align-items: center; gap: 8px;",
   badge: (bg: string, text: string) => `background:${bg}; color:${text}; padding:2px 8px; border-radius:4px; font-weight:bold; font-size: 10px; white-space: nowrap;`,
   sysClock: "text-align:right; font-family:ui-monospace,monospace; background:#f1f5f9; padding:10px 15px; border-radius:8px;",
-  dangerCard: "padding: 20px; border: 1px solid #fed7d7; background: #fff5f5; border-radius: 8px;",
-  table: "width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem;",
-  th: "padding: 12px; border-bottom: 2px solid #f1f5f9; background: #f8fafc; text-align: left; position: sticky; top: 0; z-index: 10;",
-  td: "padding: 10px 12px; border-bottom: 1px solid #f1f5f9;",
-  activeRow: "background: #eff6ff; border-left: 4px solid #3b82f6;"
+  activeRow: "background: #eff6ff; border-left: 4px solid #3b82f6;",
+  dangerCard: "padding: 20px; border: 1px solid #fed7d7; background: #fff5f5; border-radius: 8px;"
 };
 
 /**
- * 1. 予約確認ページ（チップグリッド & アクティブ予約）
- */
-export const renderReservations = async (c: Context, data: AdminReservationData | null) => {
-  if (!data) return html`<div style="padding:20px; color:red;">⚠️ 予約データの読み込みに失敗しました。</div>`;
-
-  // 選択中のスタッフ名を特定
-  const selectedStaff = data.staffs.find(s => s.staff_id === data.selectedStaffId);
-  const { grids, bookedSlots, plans, nowUnix } = data;
-  const leadTimeSec = (selectedStaff?.min_lead_time_min || 1440) * 60;
-
-  // 判定ロジック
-  const availableUnixTimes = grids
-    .filter(g => !g.slot_id && (g.start_at_unix > nowUnix + leadTimeSec))
-    .map(g => Number(g.start_at_unix));
-  
-  const planAvailabilities = plans
-    .filter(p => p.duration_min > 0)
-    .map(p => ({
-      planName: p.plan_name,
-      possibleSet: new Set(calculatePossibleSlots(availableUnixTimes, p.duration_min + p.buffer_min, grids[0]?.grid_size_min || 30))
-    }));
-
-  const groupedGrids = grids.reduce((acc: any, g) => {
-    (acc[g.date_string] = acc[g.date_string] || []).push(g);
-    return acc;
-  }, {});
-
-  return html`
-    <div style="${PAGE_STYLE.headerContainer}">
-      <div>
-        <h2 style="margin:0;">予約状況</h2>
-        <p style="color: #64748b; font-size: 0.9rem;">
-          <b>${selectedStaff?.staff_display_name || '未選択'}</b> のスケジュールを表示中
-        </p>
-      </div>
-      <div style="${PAGE_STYLE.sysClock}">
-        <small style="opacity:0.6; font-size:0.7rem;">SYSTEM JST</small><br>
-        <span style="font-size:1rem; font-weight:bold;">${data.jstNow}</span>
-      </div>
-    </div>
-
-    <section style="${PAGE_STYLE.sectionCard}">
-      <h3 style="${PAGE_STYLE.sectionTitle}">🗓 確定済みの予約</h3>
-      <table style="${PAGE_STYLE.table}">
-        <thead>
-          <tr><th style="${PAGE_STYLE.th}">ユーザー / プラン</th><th style="${PAGE_STYLE.th}">日時</th><th style="${PAGE_STYLE.th}">合計時間</th></tr>
-        </thead>
-        <tbody>
-          ${bookedSlots.length > 0 ? bookedSlots.map(s => html`
-            <tr>
-              <td style="${PAGE_STYLE.td}"><small style="color:#64748b;">${s.user_email}</small><br><b>${s.plan_name}</b></td>
-              <td style="${PAGE_STYLE.td}">${s.date_string}<br><b>${s.start_time_jst}</b></td>
-              <td style="${PAGE_STYLE.td}">${s.total_min} min</td>
-            </tr>
-          `) : html`<tr><td colspan="3" style="${PAGE_STYLE.td}; text-align:center; color:#94a3b8; padding:2rem;">現在、確定した予約はありません。</td></tr>`}
-        </tbody>
-      </table>
-    </section>
-
-    <section style="${PAGE_STYLE.sectionCard}">
-      <h3 style="${PAGE_STYLE.sectionTitle}">⚡️ 判定グリッド</h3>
-      <p style="font-size:0.75rem; color:#64748b; margin-bottom:1rem;">※締切設定: ${((selectedStaff?.min_lead_time_min || 0)/60).toFixed(1)}時間前</p>
-      </section>
-  `;
-};
-
-/**
- * 2. 操作ログページ
- */
-export const renderLogs = async (c: Context) => html`
-  <h2 style="margin-top:0;">操作ログ</h2>
-  <div style="margin-top: 20px; font-family: monospace; font-size: 0.85rem; background: #f8f9fa; padding: 15px; border-radius: 4px;">
-    <div>[2026-04-18 14:40] ADMIN: ログインしました</div>
-  </div>
-`;
-
-/**
- * 3. 基本設定ページ (複数店舗・複数スタッフ対応)
+ * 基本設定ページ (複数店舗・複数スタッフ・プラン管理)
  */
 export const renderSettings = async (c: Context, data: AdminSettingsData | null) => {
   if (!data) return html`<div style="padding:20px; color:red;">⚠️ 設定データの読み込みに失敗しました。</div>`;
@@ -133,7 +51,7 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
     </section>
 
     <section style="${PAGE_STYLE.sectionCard}">
-      <h3 style="${PAGE_STYLE.sectionTitle}">👤 スタッフ設定 (${currentShop?.shop_name})</h3>
+      <h3 style="${PAGE_STYLE.sectionTitle}">👤 スタッフ設定 (${currentShop?.shop_name || '未選択'})</h3>
       <div style="display: grid; gap: 8px;">
         ${data.staffs.map(staff => html`
           <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
@@ -153,7 +71,7 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
     </section>
 
     <section style="${PAGE_STYLE.sectionCard}">
-      <h3 style="${PAGE_STYLE.sectionTitle}">📋 プラン一覧 (${currentShop?.shop_name})</h3>
+      <h3 style="${PAGE_STYLE.sectionTitle}">📋 プラン一覧 (${currentShop?.shop_name || '未選択'})</h3>
       <div style="display: grid; gap: 8px;">
         ${data.plans.map(p => html`
           <div style="padding: 12px; border: 1px solid #f1f5f9; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
@@ -174,7 +92,7 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
     <section style="${PAGE_STYLE.dangerCard}">
       <h3 style="color: #c53030; font-size: 1rem; margin-top: 0;">緊急停止（店舗単位）</h3>
       <p style="font-size: 0.8rem; color: #742a2a;">
-        選択中の店舗 <b>${currentShop?.shop_name}</b> の新規予約を即座に停止します。
+        選択中の店舗 <b>${currentShop?.shop_name || '未選択'}</b> の新規予約を即座に停止します。
       </p>
       <button style="background: #e53e3e; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">
         受付停止を実行
