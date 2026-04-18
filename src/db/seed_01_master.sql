@@ -4,7 +4,7 @@
 -- =========================================================================
 
 -- =========================================================================
--- [SEED v4.3] Service Page Initial Data (Agnostic-Payment Ready)
+-- [SEED v4.4] Service Page Initial Data (Agnostic-Payment Ready)
 -- =========================================================================
 -- [規約]
 -- 1. べき等性の確保: 実行時に既存データを INSERT OR REPLACE で処理。
@@ -32,12 +32,22 @@ VALUES (
 -- -------------------------------------------------------------------------
 -- 2. スタッフ（staffs）
 -- -------------------------------------------------------------------------
-INSERT OR REPLACE INTO staffs (staff_id, shop_id, real_name, staff_display_name, created_at, updated_at)
-VALUES (
+-- [変更点] min_lead_time_min (予約締切) を追加。
+-- デフォルト 1440 (24時間) を明示。
+INSERT OR REPLACE INTO staffs (
+    staff_id, 
+    shop_id, 
+    real_name, 
+    staff_display_name, 
+    min_lead_time_min,
+    created_at, 
+    updated_at
+) VALUES (
     'stf_shizentaiga', 
     'shp_zenyu', 
     '清善 泰賀',            -- 労務管理・実名
     '清善 泰賀',            -- 顧客表示用
+    1440,                 -- 予約締切: 24時間前
     unixepoch('2026-04-11 03:00:00'), -- JST 2026-04-11 12:00
     unixepoch('2026-04-11 03:00:00')
 );
@@ -45,7 +55,7 @@ VALUES (
 -- -------------------------------------------------------------------------
 -- 3. プラン（plans）
 -- -------------------------------------------------------------------------
--- v4.3の CHECK 制約 (draft, active, hidden, inactive, archived) に準拠
+-- v4.4 の CHECK 制約 (draft, active, hidden, inactive, archived) に準拠
 INSERT OR REPLACE INTO plans (
     plan_id, 
     shop_id, 

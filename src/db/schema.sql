@@ -4,14 +4,17 @@
 -- =========================================================================
 
 -- =========================================================================
--- [SCHEMA v4.3] Service Booking System (Future-Proof Model)
+-- [SCHEMA v4.4] Service Booking System (Future-Proof Model)
 -- =========================================================================
--- 最終更新: 2026-04-16
+-- 最終更新: 2026-04-18
 -- 
 -- 【主要な変更点】
--- 1. Agnostic-Payment: 決済プロバイダー依存を排除した抽象化設計。
--- 2. CRM-Integrity: external_id と provider の複合制約で多媒体併用に対応。
--- 3. Audit-Ready: 運営上の実務ステータス (refunded, no_show) を追加。
+-- 1. Staff-Personalization: min_lead_time_min を staffs テーブルに追加。
+--    スタッフごとに「何分前まで予約を受け付けるか」をデフォルト24時間で設定可能に。
+-- 2. Security-Audit: payment_gateway_logs に webhook_signature を追加。
+--    受信したWebhookの正当性を後日検証できる証跡を確保。
+-- 3. CRM-Integrity: external_id と provider の複合制約で多媒体併用に対応。
+-- 4. Audit-Ready: 運営上の実務ステータス (refunded, no_show) を追加。
 -- =========================================================================
 
 -- -------------------------------------------------------------------------
@@ -59,6 +62,7 @@ CREATE TABLE staffs (
     shop_id             TEXT NOT NULL,
     real_name           TEXT NOT NULL, -- 労務管理用
     staff_display_name  TEXT NOT NULL, -- 顧客表示用
+    min_lead_time_min   INTEGER NOT NULL DEFAULT 1440, -- 予約締切時間（分）。デフォルト24時間
     created_at          INTEGER NOT NULL,
     updated_at          INTEGER NOT NULL,
     FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE
@@ -148,7 +152,7 @@ CREATE TABLE payment_gateway_logs (
     provider          TEXT NOT NULL,    -- 発行元識別子
     type              TEXT NOT NULL,    -- イベント種別 (webhook.type)
     payload           TEXT NOT NULL,    -- 受信データ全文(JSON)
-    webhook_signature TEXT,             -- 検証用署名
+    webhook_signature TEXT,              -- 検証用署名
     created_at        INTEGER NOT NULL
 );
 
