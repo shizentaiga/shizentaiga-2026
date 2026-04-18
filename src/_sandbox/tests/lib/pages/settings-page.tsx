@@ -2,7 +2,6 @@ import { Context } from 'hono';
 import { html } from 'hono/html';
 import { AdminSettingsData } from '../../db/admin-repository';
 
-// --- 設定ページ専用のスタイル定義 ---
 const PAGE_STYLE = {
   headerContainer: "display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;",
   sectionCard: "background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);",
@@ -15,15 +14,40 @@ const PAGE_STYLE = {
   submitBtn: "background: #3b82f6; color: white; border: none; padding: 8px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;"
 };
 
-/**
- * 基本設定ページ (複数店舗・複数スタッフ・プラン管理)
- */
 export const renderSettings = async (c: Context, data: AdminSettingsData | null) => {
   if (!data) return html`<div style="padding:20px; color:red;">⚠️ 設定データの読み込みに失敗しました。</div>`;
 
   const currentShop = data.shops.find(s => s.shop_id === data.selectedShopId);
 
   return html`
+    <script>
+      function setEditPlan(plan) {
+        const form = document.getElementById('plan-form');
+        const title = document.getElementById('form-title');
+        
+        // フォーム内の各要素に値を代入
+        form.querySelector('[name="plan_id"]').value = plan.plan_id;
+        form.querySelector('[name="plan_name"]').value = plan.plan_name;
+        form.querySelector('[name="duration_min"]').value = plan.duration_min;
+        form.querySelector('[name="buffer_min"]').value = plan.buffer_min;
+        form.querySelector('[name="price_amount"]').value = plan.price_amount;
+        form.querySelector('[name="description"]').value = plan.description || '';
+        
+        // UIのフィードバック: タイトルを変更し、青色にする
+        title.innerText = '📋 プランの編集（ID: ' + plan.plan_id + '）';
+        title.style.color = '#3b82f6';
+        
+        // フォーム位置までスクロール
+        window.scrollTo({ top: form.offsetTop - 100, behavior: 'smooth' });
+      }
+
+      function resetPlanForm() {
+        const title = document.getElementById('form-title');
+        title.innerText = '新規プラン追加';
+        title.style.color = 'inherit';
+      }
+    </script>
+
     <div style="${PAGE_STYLE.headerContainer}">
       <div>
         <h2 style="margin:0;">基本設定</h2>
@@ -61,7 +85,6 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
               <div style="font-weight: bold;">${staff.staff_display_name}</div>
               <small style="color: #64748b;">
                 予約締切: <b>${(staff.min_lead_time_min / 60).toFixed(1)}時間前</b> 
-                (${ (staff.min_lead_time_min / 1440).toFixed(1) }日前相当)
               </small>
             </div>
             <button style="font-size: 0.75rem; color: #3b82f6; background: none; border: 1px solid #3b82f6; padding: 4px 12px; border-radius: 6px; cursor: pointer;">
@@ -75,12 +98,11 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
     <section style="${PAGE_STYLE.sectionCard}">
       <h3 style="${PAGE_STYLE.sectionTitle}">📋 プラン管理 (${currentShop?.shop_name || '未選択'})</h3>
       
-      <form method="POST" action="/_debug/_admin/settings/plans" style="margin-bottom: 24px; padding: 20px; background: #f8fafc; border: 1px dashed #cbd5e0; border-radius: 12px;">
-        <h4 style="margin: 0 0 16px 0; font-size: 0.9rem;">新規プラン追加</h4>
+      <form id="plan-form" method="POST" action="/_debug/_admin/settings/plans" style="margin-bottom: 24px; padding: 20px; background: #f8fafc; border: 1px dashed #cbd5e0; border-radius: 12px;">
+        <h4 id="form-title" style="margin: 0 0 16px 0; font-size: 0.9rem;">新規プラン追加</h4>
         <input type="hidden" name="action" value="upsert">
         <input type="hidden" name="shop_id" value="${data.selectedShopId}">
-        
-        <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr auto; gap: 12px; align-items: flex-end;">
+        <input type="hidden" name="plan_id" value=""> <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
           <div>
             <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">プラン名</label>
             <input type="text" name="plan_name" placeholder="例: プレミアム60" required style="${PAGE_STYLE.formInput}">
@@ -97,25 +119,44 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
             <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">価格 (円)</label>
             <input type="number" name="price_amount" placeholder="5000" required style="${PAGE_STYLE.formInput}">
           </div>
-          <button type="submit" style="${PAGE_STYLE.submitBtn}">保存</button>
+        </div>
+
+        <div style="display: flex; gap: 12px; align-items: flex-end;">
+          <div style="flex: 1;">
+            <label style="font-size: 0.75rem; color: #64748b; display: block; margin-bottom: 4px;">プラン説明 (80文字以内)</label>
+            <input type="text" name="description" placeholder="プランの概要を入力してください" maxlength="80" style="${PAGE_STYLE.formInput}">
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="submit" style="${PAGE_STYLE.submitBtn}">保存</button>
+            <button type="reset" onclick="resetPlanForm()" style="background: #e2e8f0; color: #475569; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;">
+              取消
+            </button>
+          </div>
         </div>
       </form>
 
       <div style="display: grid; gap: 8px;">
         ${data.plans.filter(p => p.plan_status !== 'archived').map(p => html`
           <div style="padding: 12px; border: 1px solid #f1f5f9; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <div>
+            <div style="flex: 1; min-width: 0;">
               <div style="font-weight: bold; font-size: 0.9rem;">${p.plan_name}</div>
-              <small style="color: #64748b;">
+              <div style="font-size: 0.75rem; color: #64748b; margin: 2px 0 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${p.description || '（説明文なし）'}
+              </div>
+              <small style="color: #94a3b8;">
                 ¥${p.price_amount.toLocaleString()} / ${p.duration_min}分 (休憩 ${p.buffer_min}分)
               </small>
             </div>
-            <div style="display: flex; gap: 12px; align-items: center;">
-              <span style="${PAGE_STYLE.badge(p.plan_status === 'active' ? '#dcfce7' : '#f1f5f9', p.plan_status === 'active' ? '#166534' : '#64748b')}">
-                ${p.plan_status.toUpperCase()}
-              </span>
-              
-              <form method="POST" action="/_debug/_admin/settings/plans" onsubmit="return confirm('このプランをアーカイブしますか？（削除後も過去の予約データには影響しません）')">
+            
+            <div style="display: flex; gap: 12px; align-items: center; margin-left: 16px;">
+              <button 
+                type="button" 
+                onclick='setEditPlan(${JSON.stringify(p)})' 
+                style="font-size: 0.75rem; color: #3b82f6; background: white; border: 1px solid #3b82f6; padding: 4px 10px; border-radius: 4px; cursor: pointer;">
+                編集
+              </button>
+
+              <form method="POST" action="/_debug/_admin/settings/plans" onsubmit="return confirm('このプランをアーカイブしますか？')">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="plan_id" value="${p.plan_id}">
                 <button type="submit" style="background: none; border: none; color: #ef4444; font-size: 0.75rem; cursor: pointer; padding: 4px;">
@@ -125,11 +166,6 @@ export const renderSettings = async (c: Context, data: AdminSettingsData | null)
             </div>
           </div>
         `)}
-        ${data.plans.filter(p => p.plan_status !== 'archived').length === 0 ? html`
-          <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 0.85rem;">
-            登録されているプランはありません。
-          </div>
-        ` : ''}
       </div>
     </section>
 

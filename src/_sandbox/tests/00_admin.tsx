@@ -2,7 +2,7 @@
  * 管理者ダッシュボード 司令塔モジュール
  * * 【ファイル構成マップ】
  * src/_sandbox/tests/
- * ├── 00_admin.tsx                # [本ファイル] 認証ガード、全体のルーティング、データ取得の統括
+ * ├── 00_admin.tsx                 # [本ファイル] 認証ガード、全体のルーティング、データ取得の統括
  * ├── lib/
  * │   ├── admin-logic.ts          # Google OAuth 認証、管理権限チェック等のバックエンドロジック
  * │   ├── admin-views.tsx         # 全画面共通のガワ（サイドバー、タブメニュー、AdminLayout）
@@ -142,7 +142,7 @@ test00.get('/', async (c) => {
 // 5. 更新系ルーティング (POST)
 // ---------------------------------------------------------
 
-/** プランの追加・削除処理 */
+/** プランの追加・更新・削除処理 */
 test00.post('/settings/plans', async (c) => {
   if (!checkAuth(c)) return c.text("Unauthorized", 401);
 
@@ -152,8 +152,11 @@ test00.post('/settings/plans', async (c) => {
   try {
     if (action === 'upsert') {
       await upsertPlan(c.env.shizentaiga_db, {
+        // plan_idがあれば更新、なければundefinedを渡して新規作成
+        plan_id: body.plan_id ? String(body.plan_id) : undefined,
         shop_id: String(body.shop_id),
         plan_name: String(body.plan_name),
+        description: String(body.description || ''), // 説明文の受け取りを修正
         duration_min: Number(body.duration_min),
         buffer_min: Number(body.buffer_min),
         price_amount: Number(body.price_amount),
