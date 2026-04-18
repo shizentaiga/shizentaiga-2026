@@ -1,11 +1,12 @@
 /**
  * @file /src/db/repositories/booking-db.ts
  * @description Cloudflare D1 から予約チップを取得。
- * [v5.1 整合性再構築：SQL主導モデル]
+ * [v5.9 整合性再構築：動的リードタイム・フィルタリングモデル]
  * * 根拠:
  * 1. 【ルールA】DBサーバー(SQL)の strftime('%s', 'now') を使い、
- * 実行環境のタイムゾーン設定に依存せず「現在のUnixTime」を絶対基準で取得して比較。
- * 2. TS側での時刻計算を廃止し、DBとの比較を「絶対値(UnixTime) vs 絶対値」で完結させる。
+ * 実行環境のタイムゾーン設定に依存せず「現在のUnixTime」を絶対基準で取得。
+ * 2. 【リードタイム対応】staffs テーブルの min_lead_time_min を JOIN し、
+ * SQL内部で (現在時刻 + リードタイム) を計算。これより未来のチップのみを抽出。
  */
 
 import { Context } from 'hono'
@@ -23,6 +24,7 @@ export interface AvailableChip {
 
 /**
  * DBから未予約のタイムチップを取得する
+ * 💡 staffs テーブルの min_lead_time_min を加味してフィルタリング
  */
 export const getAvailableChipsFromDB = async (
   c: Context<{ Bindings: Bindings }>, 
@@ -33,15 +35,18 @@ export const getAvailableChipsFromDB = async (
     if (!db) return [];
 
     /**
-     * 【ルールA適用：SQL関数による比較】
-     * 💡 TS側で new Date() を作らず、SQL内部で 'now' を判定。
-     * 💡 start_at_unix は UTC基準の数値であるため、strftime('%s', 'now') との比較が最も正確。
+     * 【ルールA適用：動的リードタイム判定】
+     * 💡 start_at_unix は UTC基準。
+     * 💡 strftime('%s', 'now') で現在のUTC UnixTimeを取得。
+     * 💡 スタッフごとに設定された min_lead_time_min（分）を秒に換算して加算し、
+     * その境界線より未来の枠のみを抽出する。
      */
     let query = `
       SELECT s.start_at_unix, s.date_string, s.grid_size_min
       FROM staff_schedules s
+      INNER JOIN staffs st ON s.staff_id = st.staff_id
       LEFT JOIN reservation_grid rg ON s.schedule_id = rg.schedule_id
-      WHERE s.start_at_unix > strftime('%s', 'now')
+      WHERE s.start_at_unix > (strftime('%s', 'now') + (st.min_lead_time_min * 60))
         AND rg.slot_id IS NULL
     `;
     
@@ -72,6 +77,8 @@ export const getValidatedDatesByPlan = async (
   planDuration: number,
   planBuffer: number
 ): Promise<{ date: string }[]> => {
+  // 💡 getAvailableChipsFromDB が既にリードタイムで絞り込んでいるため、
+  // ここで取得される allChips はすべて予約締切をクリアしているものになる。
   const allChips = await getAvailableChipsFromDB(c);
   if (allChips.length === 0) return [];
 
