@@ -2,6 +2,7 @@
  * @file 02_db_check.tsx
  * @description 
  * v4.4 schema対応：結合ロジック修正 & リードタイム表示モデル
+ * プラン管理：archived 状態のプランを非表示に設定、プランIDの表示追加
  */
 
 import { Hono } from 'hono';
@@ -31,7 +32,7 @@ test02.get('/', async (c) => {
   if (!c.env.shizentaiga_db) return c.text("❌ D1 Connection Error", 500);
 
   try {
-    // 1. マスター取得（JOIN条件を st.shop_id に修正）
+    // 1. マスター取得
     const master = await c.env.shizentaiga_db.prepare(`
       SELECT sh.shop_id, sh.shop_name, st.staff_id, st.staff_display_name, st.min_lead_time_min,
              strftime('%s', 'now') as now_unix,
@@ -41,12 +42,19 @@ test02.get('/', async (c) => {
       WHERE sh.shop_id = 'shp_zenyu' LIMIT 1
     `).first<any>();
 
-    if (!master) return c.html(html`<div style="padding:20px;">⚠️ Master data not found. (Check shp_zenyu existence)</div>`);
+    if (!master) return c.html(html`<div style="padding:20px;">⚠️ Master data not found.</div>`);
 
-    // 2. データ取得
-    const { results: allPlans } = await c.env.shizentaiga_db.prepare(`SELECT * FROM plans WHERE shop_id = ? ORDER BY price_amount DESC`).bind(master.shop_id).all<Plan>();
+    // 2. データ取得 (archived を除外)
+    const { results: allPlans } = await c.env.shizentaiga_db.prepare(`
+      SELECT * FROM plans 
+      WHERE shop_id = ? AND plan_status != 'archived' 
+      ORDER BY price_amount DESC
+    `).bind(master.shop_id).all<Plan>();
+
     const { results: bookedSlots } = await c.env.shizentaiga_db.prepare(`
-      SELECT s.user_email, p.plan_name, s.date_string, time(s.start_at_unix, 'unixepoch', '+9 hours') as start_time_jst, s.actual_duration_min + s.actual_buffer_min as total_min
+      SELECT s.user_email, p.plan_name, p.plan_id, s.date_string, 
+             time(s.start_at_unix, 'unixepoch', '+9 hours') as start_time_jst, 
+             s.actual_duration_min + s.actual_buffer_min as total_min
       FROM slots s JOIN plans p ON s.plan_id = p.plan_id
       WHERE s.staff_id = ? AND s.booking_status = 'booked' ORDER BY s.start_at_unix ASC
     `).bind(master.staff_id).all<any>();
@@ -64,7 +72,7 @@ test02.get('/', async (c) => {
     // 3. 判定ロジック
     const nowUnix = Number(master.now_unix);
     const leadTimeSec = master.min_lead_time_min * 60;
-    const leadDays = (master.min_lead_time_min / 1440).toFixed(1); // 日数換算
+    const leadDays = (master.min_lead_time_min / 1440).toFixed(1);
 
     const availableUnixTimes = grids.filter(g => !g.slot_id && (g.start_at_unix > nowUnix + leadTimeSec)).map(g => Number(g.start_at_unix));
     
@@ -72,6 +80,7 @@ test02.get('/', async (c) => {
       .filter(p => p.duration_min > 0)
       .map(p => ({
         planName: p.plan_name,
+        planId: p.plan_id,
         possibleSet: new Set(calculatePossibleSlots(availableUnixTimes, p.duration_min + p.buffer_min, grids[0]?.grid_size_min || 30))
       }));
 
@@ -105,7 +114,9 @@ test02.get('/', async (c) => {
               ${allPlans.map(p => html`
                 <div style="padding:12px; border:1px solid #f1f5f9; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
                   <div>
-                    <div style="font-weight:bold; font-size:0.9rem;">${p.plan_name}</div>
+                    <div style="font-weight:bold; font-size:0.9rem;">
+                      ${p.plan_name} <small style="color:#64748b; font-weight:normal;">(${p.plan_id})</small>
+                    </div>
                     <small style="color:#64748b;">¥${p.price_amount.toLocaleString()} / ${p.duration_min}分 (+${p.buffer_min})</small>
                   </div>
                   <span style="${styles.badge(p.plan_status === 'active' ? '#dcfce7' : '#f1f5f9', p.plan_status === 'active' ? '#166534' : '#64748b')}">${p.plan_status}</span>
@@ -121,7 +132,10 @@ test02.get('/', async (c) => {
               <tbody>
                 ${bookedSlots.length > 0 ? bookedSlots.map(s => html`
                   <tr>
-                    <td style="${styles.td}"><small>${s.user_email}</small><br><b>${s.plan_name}</b></td>
+                    <td style="${styles.td}">
+                      <small>${s.user_email}</small><br>
+                      <b>${s.plan_name}</b> <small style="color:#64748b;">(${s.plan_id})</small>
+                    </td>
                     <td style="${styles.td}">${s.date_string}<br><b>${s.start_time_jst}</b></td>
                     <td style="${styles.td}">${s.total_min} min</td>
                   </tr>
@@ -143,7 +157,7 @@ test02.get('/', async (c) => {
                   <tr>
                     <th style="${styles.th}; width:120px;">Start Time</th>
                     <th style="${styles.th}; width:180px;">Status</th>
-                    ${planAvailabilities.map(pa => html`<th style="${styles.th}; text-align:center;">${pa.planName}</th>`)}
+                    ${planAvailabilities.map(pa => html`<th style="${styles.th}; text-align:center;">${pa.planName}<br><small>(${pa.planId})</small></th>`)}
                   </tr>
                 </thead>
                 <tbody>
