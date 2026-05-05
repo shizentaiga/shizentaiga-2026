@@ -1,17 +1,10 @@
 /**
  * @file index.tsx
  * @description アプリケーションのエントリーポイント。
- * [v5.1 整合性再構築：トランスポート・パススルーモデル]
- * * 修正の根拠:
- * 1. 【ルールA】への対応: DB(SQL)との比較は下層の repository 層で行うため、ここでは関与しない。
- * 2. 【ルールB】への対応: 表示補正(addHours)は末端のコンポーネント(SlotList/Checkout)の役割とする。
- * 3. 結論: index.tsx は「生の UnixTime」を右から左へ流すことに徹し、計算誤差の混入を物理的に防ぐ。
  */
 
 import { Hono } from 'hono'
-import { serveStatic } from 'hono/serve-static'
 import { renderer } from './renderer' 
-// import { getUnixTime } from 'date-fns' // 💡 補正を行わないため、ここでの利用は不要になりました
 
 /* --- 🧱 UI COMPONENTS & PAGES --- */
 import { Top } from './pages/Top'      
@@ -30,6 +23,8 @@ import { BUSINESS_INFO } from './constants/info'
 /* --- 💳 EXTERNAL SERVICES --- */
 import { createStripeSession } from './lib/stripe-server'
 
+import sandboxBridge from './_sandbox/_bridge';
+
 /* --- 📌 TYPE DEFINITIONS --- */
 type BaseBindings = { shizentaiga_db: D1Database; }
 type StripeBindings = BaseBindings & { STRIPE_SECRET_KEY: string; }
@@ -37,36 +32,20 @@ type StripeBindings = BaseBindings & { STRIPE_SECRET_KEY: string; }
 const app = new Hono<{ Bindings: BaseBindings }>()
 
 /* --- 0. CONFIGURATION & ASSETS --- */
-
-// @ts-ignore
-app.use('/static/*', serveStatic({ root: './' }))
 app.all('*', renderer)
-
-import sandboxBridge from './_sandbox/_bridge';
 app.route('/_debug', sandboxBridge); 
 
 /* --- 1. PAGE HANDLERS --- */
+const renderTopPage = (c: any) => c.render(<Top />, {});
+const renderLegalPage = (c: any) => c.render(<Legal />, {title: 'Legal Information'});
 
-const renderTopPage = (c: any) => c.render(<Top />, {
-  title: '清善 泰賀 | 公式サイト',
-  description: 'マネジメントコンサルタント 清善 泰賀のオフィシャルサイトです。'
-});
-
-const renderLegalPage = (c: any) => c.render(<Legal />, { 
-  title: 'Legal Information | 特定商取引法に基づく表記' 
-});
-
-/**
- * [SERVICES] 
- */
+/* [SERVICES]  */
 const renderServicesPage = async (c: any) => {
   const content = await Services(c);
   return c.render(content, { title: 'Services & Booking | 予約案内' });
 };
 
-/**
- * [CHECKOUT]
- */
+/** [CHECKOUT] */
 const renderCheckoutPage = async (c: any) => {
   // 💡 環境判定（Cloudflare Dashboard または .dev.vars の NODE_ENV を参照）
   const isDev = (c.env as any).NODE_ENV === 'development';
@@ -83,9 +62,8 @@ const renderCheckoutPage = async (c: any) => {
     if (!plan) return c.redirect('/error');
 
     /**
-     * 【ルールBへの橋渡し】
-     * 💡 ここでは補正を行わず、生の slot (UnixTime) をそのまま Checkout へ渡す。
-     * 💡 実際の「+9h 表示」は、受け取った Checkout.tsx 側で実行される。
+     * 💡 生の slot (UnixTime) をそのまま Checkout へ渡す。
+     * 💡 実際の「+9h 表示」は、受け取った Checkout.tsx 側で実行
      */
     const checkoutProps = {
       shopName: BUSINESS_INFO.shopName,
