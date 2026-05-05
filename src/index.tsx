@@ -10,11 +10,11 @@ import { renderer } from './renderer'
 /* --- 🧱 UI COMPONENTS & PAGES --- */
 import { Top } from './pages/Top'      
 import { Legal } from './pages/Legal' 
-import { ErrorPage } from './pages/Error'
-import { ContactPage } from './pages/Contact'
-import { SuccessPage } from './pages/Success'
-import { Services } from './pages/Services'
-import { Checkout } from './pages/Checkout'
+import { ErrorPage } from './pages/Services/Error'
+import { ContactPage } from './pages/Services/Contact'
+import { SuccessPage } from './pages/Services/Success'
+import { Services } from './pages/Services/Services'
+import { Checkout } from './pages/Services/Checkout'
 import { SlotList } from './components/Booking/SlotList'
 
 /* --- ⚙️ DATA ACCESS --- */
@@ -49,9 +49,6 @@ const renderServicesPage = async (c: any) => {
 
 /** [CHECKOUT] */
 const renderCheckoutPage = async (c: any) => {
-  // 💡 環境判定（Cloudflare Dashboard または .dev.vars の NODE_ENV を参照）
-  const isDev = (c.env as any).NODE_ENV === 'development';
-
   const shopId = c.req.query('shop_id');
   const planId = c.req.query('plan');
   const date = c.req.query('date');   // YYYY-MM-DD
@@ -77,7 +74,6 @@ const renderCheckoutPage = async (c: any) => {
       rawPlanId: planId,
       date, 
       slot, 
-      showDebug: isDev, // 💡 判定結果を注入
       backUrl: "/services"
     };
 
@@ -124,7 +120,6 @@ const handleStripeSession = async (c: any) => {
 };
 
 /* --- 3. ROUTE MAPPING --- */
-
 app.get('/', renderTopPage);
 app.get('/legal', renderLegalPage);
 app.get('/services', renderServicesPage);

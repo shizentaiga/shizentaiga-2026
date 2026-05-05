@@ -4,7 +4,7 @@
  * 予約フローからの離脱や、個別相談を希望するユーザーへの案内。
  */
 
-import { BUSINESS_INFO } from '../constants/info'
+import { BUSINESS_INFO } from '../../constants/info'
 
 export const ContactPage = () => {
   return (

@@ -10,19 +10,19 @@
 
 import { Context } from 'hono'
 import { html } from 'hono/html'
-import { BUSINESS_INFO } from '../constants/info'
+import { BUSINESS_INFO } from '../../constants/info'
 
 /* --- ⚙️ LOGIC & DATA ACCESS --- */
-import { generateCalendarDataWithNavigation } from '../lib/calendar-logic'
-import { getAvailableDatesByTargetPlan } from '../db/repositories/booking-db'
-import { getPlansFromDB } from '../db/repositories/plan-db'
+import { generateCalendarDataWithNavigation } from '../../lib/calendar-logic'
+import { getAvailableDatesByTargetPlan } from '../../db/repositories/booking-db'
+import { getPlansFromDB } from '../../db/repositories/plan-db'
 
 /* --- 🧱 UI COMPONENTS --- */
-import { ServicePlanList } from '../components/Booking/ServicePlanCard'
-import { CalendarSection } from '../components/Booking/CalendarSection'
-import { ConsultantSection } from '../components/Layout/ConsultantSection'
-import { BookingFooter } from '../components/Booking/BookingFooter'
-import { SlotList } from '../components/Booking/SlotList'
+import { ServicePlanList } from '../../components/Booking/ServicePlanCard'
+import { CalendarSection } from '../../components/Booking/CalendarSection'
+import { ConsultantSection } from '../../components/Layout/ConsultantSection'
+import { BookingFooter } from '../../components/Booking/BookingFooter'
+import { SlotList } from '../../components/Booking/SlotList'
 
 type Bindings = {
   shizentaiga_db: D1Database;
