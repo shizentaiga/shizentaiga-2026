@@ -111,7 +111,8 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body>
-        <div className="container">
+        {/* IDを追加。既存の className="container" は維持 */}
+        <div id="layout-root" className="container">
           {children}
         </div>
       </body>

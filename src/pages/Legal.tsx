@@ -54,6 +54,13 @@ const navItems = [
 /* --- 2. コンポーネント本体 --- */
 export const Legal = () => {
   return html`
+    <style>
+      /* このページが表示されている時だけ、上位の540px制限を800pxで上書きする */
+      #layout-root.container {
+        max-width: 800px;
+      }
+    </style>
+
     <div style="${styles.container}">
       <header style="${styles.header}">
         <h1 style="${styles.h1}">Legal Information</h1>
