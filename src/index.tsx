@@ -4,6 +4,7 @@
  */
 
 import { Hono } from 'hono'
+import { Context } from 'hono'
 import { renderer } from './renderer' 
 
 /* --- 🧱 UI COMPONENTS & PAGES --- */
@@ -36,13 +37,13 @@ app.all('*', renderer)
 app.route('/_debug', sandboxBridge); 
 
 /* --- 1. PAGE HANDLERS --- */
-const renderTopPage = (c: any) => c.render(<Top />, {});
-const renderLegalPage = (c: any) => c.render(<Legal />, {title: 'Legal Information'});
+const renderTopPage = (c: Context) => c.render(<Top />);
+const renderLegalPage = (c: Context) => c.render(<Legal />);
 
 /* [SERVICES]  */
 const renderServicesPage = async (c: any) => {
   const content = await Services(c);
-  return c.render(content, { title: 'Services & Booking | 予約案内' });
+  return c.render(content, { title: 'Services' });
 };
 
 /** [CHECKOUT] */

@@ -33,14 +33,13 @@ declare module 'hono' {
 export const renderer = jsxRenderer(({ children, title, description, ogImage, canonical }) => {
   
   // --- サイト全体の基本設定（Single Source of Truth） ---
-  const siteName = "清善 泰賀 | Taiga Shizen Official"
-  const defaultDesc = "自然科学と数理モデルを基盤に、経営の盲点を外側から観測する個別診断を提供。"
-  const defaultOgImage = "https://shizentaiga.com/images/og-p.webp"
+  const siteName = "Taiga Shizen"
   const baseUrl = "https://shizentaiga.com"
+  const defaultDesc = "不完全な論理のその先を、観測する。"
+  const defaultOgImage = `${baseUrl}/images/og-p.webp`
 
   /**
    * 💡 構造化データ（JSON-LD）の定義
-   * 以前の静的HTML版の @graph 構造を継承しつつ、リザスト情報を完全に排除。
    */
   const jsonLd = {
     "@context": "https://schema.org",
@@ -53,8 +52,8 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
         "url": baseUrl,
         "image": `${baseUrl}/images/profile.webp`,
         "jobTitle": ["経営コンサルタント", "著述家"],
-        "description": "自然科学と数理モデルを基盤に、経営と意思決定を研究・実践する経営コンサルタント、著述家。",
-        "knowsAbout": ["Management", "Automation", "Applied Mathematics"],
+        "description": "自然科学と数理モデルを基盤に、経営と意思決定を研究・実践する経営コンサルタント。",
+        "knowsAbout": ["Management", "Automation"],
         "sameAs": [
           "https://note.com/taiga_shizen",
           "https://qiita.com/tshizen2506",
@@ -68,7 +67,7 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
         "@type": "WebSite",
         "@id": `${baseUrl}/#website`,
         "url": baseUrl,
-        "name": "清善泰賀 公式ホームページ",
+        "name": "清善泰賀",
         "publisher": { "@id": `${baseUrl}/#person` },
         "inLanguage": "ja"
       }
@@ -95,11 +94,11 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
 
         {/* SNS (OGP) 設定 */}
         <meta property="og:title" content={title || siteName} />
-        <meta property="og:description" content={description || "不完全な論理のその先を、観測する。"} />
+        <meta property="og:description" content={description || defaultDesc} />
         <meta property="og:image" content={ogImage || defaultOgImage} />
         <meta property="og:url" content={canonical || baseUrl} />
         <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="清善 泰賀 公式ホームページ" />
+        <meta property="og:site_name" content={siteName} />
         <meta name="twitter:card" content="summary_large_image" />
 
         {/* 外部アセット読み込み */}
