@@ -82,7 +82,7 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, ca
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         
         {/* SEO・タイトル管理 */}
-        <title>{title ? `${title} | ${siteName}` : siteName}</title>
+        <title>{title || siteName}</title>
         <meta name="description" content={description || defaultDesc} />
         <link rel="canonical" href={canonical || baseUrl} />
 
