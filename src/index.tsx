@@ -30,7 +30,8 @@ import sandboxBridge from './_sandbox/_bridge';
 type BaseBindings = { shizentaiga_db: D1Database; }
 type StripeBindings = BaseBindings & { STRIPE_SECRET_KEY: string; }
 
-const app = new Hono<{ Bindings: BaseBindings }>()
+ // URLの末尾のスラッシュを無視(strict: false)
+const app = new Hono<{ Bindings: BaseBindings }>({ strict: false })
 
 /* --- 0. CONFIGURATION & ASSETS --- */
 app.all('*', renderer)
