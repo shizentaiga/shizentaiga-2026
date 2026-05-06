@@ -4,7 +4,7 @@
  */
 
 import { html } from 'hono/html'
-import { BUSINESS_INFO } from '../../constants/info'
+import { BUSINESS_INFO, UI_TEXT } from '../../constants/info'
 
 /* --- ⚙️ LOGIC & DATA ACCESS --- */
 import { generateCalendarDataWithNavigation } from '../../lib/calendar-logic'
@@ -23,13 +23,6 @@ import { Checkout } from './Checkout'
 import { SuccessPage } from './Success'
 import { createStripeSession } from '../../lib/stripe-server'
 import { ServicesClientScript } from './services-client'
-
-const UI_TEXT = {
-  TITLE: "Service Booking",
-  SUB_TITLE: "PRIVATE CONSULTATION",
-  STEP_PLAN: "01. Select Plan",
-  ERROR_FETCH: "データの取得中にエラーが発生しました。通信環境を確認し、ページをリロードしてください。"
-};
 
 const PageLayout = async (props: {
   ctx: any,
@@ -52,12 +45,12 @@ const PageLayout = async (props: {
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <body class="bg-gray-50 text-gray-800 leading-relaxed pb-40">
       <header class="bg-white py-12 text-center border-b border-gray-100">
-        <h1 class="text-xl font-medium tracking-[0.2em] uppercase text-gray-900">${UI_TEXT.TITLE}</h1>
-        <p class="text-[10px] text-gray-600 mt-2 tracking-widest">${UI_TEXT.SUB_TITLE}</p>
+        <h1 class="text-xl font-medium tracking-[0.2em] uppercase text-gray-900">${UI_TEXT.SERVICES.TITLE}</h1>
+        <p class="text-[10px] text-gray-600 mt-2 tracking-widest">${UI_TEXT.SERVICES.SUB_TITLE}</p>
       </header>
       <div class="max-w-3xl mx-auto p-6">
         <section class="mb-12">
-          <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">${UI_TEXT.STEP_PLAN}</h2>
+          <h2 class="text-xs font-bold tracking-[0.2em] text-gray-600 mb-6 uppercase">${UI_TEXT.SERVICES.STEP_PLAN}</h2>
           <div id="plan-selection-area">
             ${ServicePlanList(props.displayPlans)}
           </div>
@@ -80,7 +73,7 @@ const PageLayout = async (props: {
         </div>
 
         <div id="error-display" class="hidden mb-12 p-4 bg-red-50 text-red-500 text-[10px] rounded-sm text-center tracking-widest">
-          ${UI_TEXT.ERROR_FETCH}
+          ${UI_TEXT.SERVICES.ERROR_FETCH}
         </div>
 
         ${ConsultantSection()}
@@ -116,7 +109,7 @@ export const ServicesPage = async (c: any) => {
   const [viewY, viewM] = viewMonthStr.split('-').map(Number);
   const baseDateForCalendar = new Date(`${viewY}-${String(viewM).padStart(2, '0')}-02T00:00:00+09:00`);
 
-  const targetShopName = BUSINESS_INFO.shopName; 
+  const targetShopName = BUSINESS_INFO.shopName;  // "善幽"
   const [displayPlans, availableDates] = await Promise.all([
     getPlansFromDB(c, targetShopName),
     getAvailableDatesByTargetPlan(c, targetShopName)
@@ -179,8 +172,8 @@ export const renderCheckoutPage = async (c: any) => {
     if (!plan) return c.redirect('/error');
 
     const props = {
-      shopName: BUSINESS_INFO.shopName, // 固定値
-      staffName: "清善 泰賀", // 固定値
+      shopName: BUSINESS_INFO.shopName, // "善幽"
+      staffName: BUSINESS_INFO.staffName, // "清善 泰賀"
       planName: plan.plan_name,
       duration: plan.duration_min,
       price: plan.price_amount,

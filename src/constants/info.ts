@@ -1,28 +1,31 @@
 /**
  * src/constants/info.ts
- * 【真実の単一源 (Single Source of Truth)】
  * * サイト内で使用する事業者情報、価格、法務文言、URL、予約枠を一括管理します。
  * 修正時の注意：このファイルを書き換えると、サイト内の全表記（Services.tsx等）が連動して変わります。
  */
 
+// サービスページ用
+export const UI_TEXT = {
+  SERVICES: {
+    TITLE: "Service Booking",
+    SUB_TITLE: "PRIVATE CONSULTATION",
+    STEP_PLAN: "01. Select Plan",
+    ERROR_FETCH: "データの取得中にエラーが発生しました。通信環境を確認し、ページをリロードしてください。"
+  }
+} as const;
+
+// 特商法ページ用(サービスページでは一部流用)
 export const BUSINESS_INFO = {
-  /**
-   * システム識別・隔離設定
-   * v3.2 多店舗展開プロトコルに基づき、特定のショップ情報を隔離するための識別子です。
-   * getPlansFromDB(c, shopName) 等の引数として使用され、他店舗データの混入を物理的に防ぎます。
-   * 公式HP（本サイト）では「善幽」の入力を必須として運用します。
-   */
-  shopName: "善幽",
+  // 主にサービスページ用
+  shopName: "善幽", // DB(shops.shop_name)と完全一致
+  staffName: "清善 泰賀",
 
-  // 予約可能枠（手動更新セクション）：DBから読み込む処理に変更(2026/04/11)
-  // availableSlots: [ ... ],
-
-  // 基本情報
-  brandName: "清善 泰賀 | Taiga Shizen Official",
-  sellerName: "善幽（代表：菊池 大輔）",
+  // 基本情報(主に特商法ページ用)
+  brandName: "清善 泰賀",
+  sellerName: "善幽",
   representative: "菊池 大輔",
   email: "contact@shizentaiga.com",
-  businessHours: "平日 10:00 〜 18:00 (原則、3営業日以内に回答)",
+  businessHours: "平日 10:00 〜 16:00",
   
   // キャッチコピー（SEO・OGP用）
   tagline: "不完全な論理のその先を、観測する。",
@@ -36,10 +39,6 @@ export const BUSINESS_INFO = {
   paymentMethods: ["クレジットカード決済", "銀行振込"],
   paymentTiming: "【カード】ご注文時（即時決済） / 【銀行振込】ご注文日から3日以内",
   deliveryTiming: "予約完了後、指定日時に提供。デジタルコンテンツは決済完了後、即時またはメール送付。",
-
-  // サービスプラン設定：DBから読み込む処理に変更(2026/04/11)
-  // Services.tsx でループ処理するために配列形式で定義
-  // services: [ ... ],
 
   // 法務・ポリシー関連の定型文
   policies: {
