@@ -179,8 +179,8 @@ export const renderCheckoutPage = async (c: any) => {
     if (!plan) return c.redirect('/error');
 
     const props = {
-      shopName: BUSINESS_INFO.shopName,
-      staffName: "清善 泰賀",
+      shopName: BUSINESS_INFO.shopName, // 固定値
+      staffName: "清善 泰賀", // 固定値
       planName: plan.plan_name,
       duration: plan.duration_min,
       price: plan.price_amount,
