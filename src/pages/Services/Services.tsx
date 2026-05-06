@@ -36,49 +36,58 @@ const UI_TEXT = {
 const ClientScript = () => html`
   <script>
     window.addEventListener('load', function() {
-      // 1. プラン変更時の処理
-      document.addEventListener('change', function(e) {
-        if (!e.target) return;
-        if (e.target.name === 'plan_id') {
-          const selectedPlanId = e.target.value;
-          const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
-          if (selectedCell) {
-            executeSlotRequest(selectedCell.getAttribute('data-date'), selectedPlanId);
-          }
-        }
-      });
+      
+      // --- 🛠 内部関数群 ---
 
-      // 2. カレンダー日付選択時の処理
-      document.addEventListener('click', function(e) {
-        const cell = e.target.closest('.calendar-day-cell');
-        if (cell) {
-          const date = cell.getAttribute('data-date');
-          const planId = document.querySelector('input[name="plan_id"]:checked')?.value;
-
-          // 選択状態の見た目を更新
-          document.querySelectorAll('.calendar-day-cell').forEach(el => el.setAttribute('data-selected', 'false'));
-          cell.setAttribute('data-selected', 'true');
-          executeSlotRequest(date, planId);
-        }
-      });
-
-      // 3. スロット取得の実行（HTMX）
+      /** スロット取得の実行（HTMX） */
       function executeSlotRequest(date, planId) {
-        if (!date || !planId) return;
-        if (window.htmx) {
-          htmx.ajax('GET', '/services/slots', {
-            values: { date, plan_id: planId },
-            target: '#slot-list-container'
-          });
-        }
+        if (!date || !planId || !window.htmx) return;
+        
+        htmx.ajax('GET', '/services/slots', {
+          values: { date, plan_id: planId },
+          target: '#slot-list-container'
+        });
       }
 
-      // 4. エラー表示の制御
-      document.body.addEventListener('htmx:afterOnLoad', function(evt) {
-        if (evt.detail.target.id === 'slot-list-container') {
-           document.getElementById('error-display')?.classList.add('hidden');
-        }
-      });
+      /** プラン変更時のハンドラ */
+      function handlePlanChange(e) {
+        if (e.target?.name !== 'plan_id') return;
+
+        const selectedPlanId = e.target.value;
+        const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
+        if (!selectedCell) return;
+
+        executeSlotRequest(selectedCell.getAttribute('data-date'), selectedPlanId);
+      }
+
+      /** 日付選択時のハンドラ */
+      function handleDateClick(e) {
+        const cell = e.target.closest('.calendar-day-cell');
+        if (!cell) return;
+
+        const date = cell.getAttribute('data-date');
+        const planId = document.querySelector('input[name="plan_id"]:checked')?.value;
+
+        // UI更新: 既存の選択を解除して新規選択を付与
+        document.querySelectorAll('.calendar-day-cell[data-selected="true"]')
+          .forEach(el => el.setAttribute('data-selected', 'false'));
+        cell.setAttribute('data-selected', 'true');
+
+        executeSlotRequest(date, planId);
+      }
+
+      /** HTMX読み込み後の処理 */
+      function handleHtmxAfterLoad(evt) {
+        if (evt.detail.target.id !== 'slot-list-container') return;
+        document.getElementById('error-display')?.classList.add('hidden');
+      }
+
+      // --- 🚀 イベントリスナー登録 ---
+
+      document.addEventListener('change', handlePlanChange);
+      document.addEventListener('click', handleDateClick);
+      document.body.addEventListener('htmx:afterOnLoad', handleHtmxAfterLoad);
+      
     });
   </script>
 `;
