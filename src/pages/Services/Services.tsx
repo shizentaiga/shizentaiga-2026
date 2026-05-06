@@ -36,42 +36,35 @@ const UI_TEXT = {
 const ClientScript = () => html`
   <script>
     window.addEventListener('load', function() {
-      function updateDebug(id, val) {
-        const el = document.getElementById(id);
-        if (el) el.innerText = val;
-      }
+      // 1. プラン変更時の処理
       document.addEventListener('change', function(e) {
         if (!e.target) return;
         if (e.target.name === 'plan_id') {
           const selectedPlanId = e.target.value;
-          updateDebug('debug-plan', selectedPlanId);
-          updateDebug('debug-time', '---');
           const selectedCell = document.querySelector('.calendar-day-cell[data-selected="true"]');
           if (selectedCell) {
             executeSlotRequest(selectedCell.getAttribute('data-date'), selectedPlanId);
           }
         }
-        if (e.target.name === 'slot_id') {
-          const displayTime = e.target.getAttribute('data-time') || "Selected";
-          const unixTimestamp = e.target.value;
-          updateDebug('debug-time', displayTime + ' (' + unixTimestamp + ')');
-        }
       });
+
+      // 2. カレンダー日付選択時の処理
       document.addEventListener('click', function(e) {
         const cell = e.target.closest('.calendar-day-cell');
         if (cell) {
           const date = cell.getAttribute('data-date');
           const planId = document.querySelector('input[name="plan_id"]:checked')?.value;
+
+          // 選択状態の見た目を更新
           document.querySelectorAll('.calendar-day-cell').forEach(el => el.setAttribute('data-selected', 'false'));
           cell.setAttribute('data-selected', 'true');
-          updateDebug('debug-date', date);
-          updateDebug('debug-time', '---');
           executeSlotRequest(date, planId);
         }
       });
+
+      // 3. スロット取得の実行（HTMX）
       function executeSlotRequest(date, planId) {
         if (!date || !planId) return;
-        updateDebug('debug-htmx', 'Fetching...');
         if (window.htmx) {
           htmx.ajax('GET', '/services/slots', {
             values: { date, plan_id: planId },
@@ -79,34 +72,15 @@ const ClientScript = () => html`
           });
         }
       }
+
+      // 4. エラー表示の制御
       document.body.addEventListener('htmx:afterOnLoad', function(evt) {
         if (evt.detail.target.id === 'slot-list-container') {
            document.getElementById('error-display')?.classList.add('hidden');
-           updateDebug('debug-htmx', 'Idle');
         }
       });
     });
   </script>
-`;
-
-/**
- * 💡 システム状態モニター (開発環境用)
- */
-const DebugMonitor = (shopId: string, staffId: string, viewMonth: string, firstAvail: string) => html`
-  <div id="debug-monitor" class="fixed bottom-4 left-4 z-50 bg-black/85 text-[9px] font-mono text-green-400 p-3 rounded-sm border border-green-500/30 w-64 shadow-2xl pointer-events-none">
-    <p class="border-b border-green-500/30 mb-2 pb-1 text-white font-bold tracking-tighter uppercase">SYSTEM_STATE_MONITOR</p>
-    <div class="space-y-1">
-      <p>SHOP_ID    : <span class="text-blue-300">${shopId}</span></p>
-      <p>STAFF_ID   : <span class="text-blue-300">${staffId}</span></p>
-      <p>VIEW_MON   : <span class="text-pink-400 font-bold">${viewMonth}</span></p>
-      <p>FIRST_AVAIL: <span class="text-orange-400 font-bold">${firstAvail || "(Empty)"}</span></p>
-      <p class="border-t border-green-500/10 my-1"></p>
-      <p>PLAN_ID    : <span id="debug-plan" class="text-yellow-400">---</span></p>
-      <p>DATE        : <span id="debug-date" class="text-yellow-400">---</span></p>
-      <p>TIME        : <span id="debug-time" class="text-pink-400">---</span></p>
-      <p>NETWORK     : <span id="debug-htmx" class="text-blue-400">Idle</span></p>
-    </div>
-  </div>
 `;
 
 const PageLayout = async (props: {
@@ -123,9 +97,7 @@ const PageLayout = async (props: {
   viewMonthStr: string,
   prevMonthStr: string,
   nextMonthStr: string,
-  showDebug?: boolean 
 }) => {
-  const { showDebug = false } = props; 
 
   return html`
     <script src="https://cdn.tailwindcss.com"></script>
@@ -167,7 +139,6 @@ const PageLayout = async (props: {
       </div>
       ${BookingFooter(props.shopId)} 
       ${ClientScript()}
-      ${showDebug ? DebugMonitor(props.shopId, props.staffId, props.viewMonthStr, props.firstAvailableDate) : ''}
     </body>
   `;
 }
@@ -179,7 +150,6 @@ const PageLayout = async (props: {
  */
 export const ServicesPage = async (c: any) => {
   const db = c.env.shizentaiga_db;
-  const isDev = (c.env as any).NODE_ENV === 'development';
 
   const res: any = await db.prepare(`
     SELECT 
@@ -229,7 +199,6 @@ export const ServicesPage = async (c: any) => {
     viewMonthStr, 
     prevMonthStr,
     nextMonthStr,
-    showDebug: isDev
   });
 
   return c.render(content, { title: 'Services' });
