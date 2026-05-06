@@ -34,33 +34,21 @@ Cloudflare エコシステムによるフルスタックな内製化を実現す
 
 ~~~
 src/
-├── index.tsx                # 【トップ】ルーティング・エントリポイント (Checkout /api 等)
-├── renderer.tsx             # 【共通】HTML基盤・SEO・Tailwind
-├── style.css                # 【外観】基本のリセット・フォント・共通変数
+├── (Infrastructure: 基盤)
+│   ├── index.tsx         # ルーティング・エントリポイント
+│   ├── renderer.tsx      # HTML基本構造・SEO・Tailwind設定
+│   ├── style.css         # CSS変数・共通スタイル
+│   ├── constants/        # 静的定数（ビジネス情報・価格等）
+│   └── _sandbox/         # 開発中の検証・テスト用
 │
-├── pages/                   # 【ページ構成】各画面のレイアウトとデータ統合
-│   ├── Top.tsx / Services.tsx / Checkout.tsx / Success.tsx
-│   └── Contact.tsx / Legal.tsx / Error.tsx
+├── (UI / Pages: 画面と部品)
+│   ├── pages/            # 各画面レイアウト（Services, Top, Legal等）
+│   └── components/       # 再利用パーツ（Layout, Booking, Payment等）
 │
-├── components/              # 【UI部品】
-│   ├── Layout/              # 共通（Header, Footer, ConsultantSection 等）
-│   ├── Booking/             # 予約フロー（Calendar, Slots, Plans 等）
-│   └── Payment/             # 決済・コンタクト（StripeButton, ContactForm）
-│
-├── lib/                     # 【共有ロジック】
-│   ├── calendar-logic.ts / slot-logic.ts / stripe-server.ts
-│   └── id-utils.ts (ULID)
-│
-├── client/                  # 【ブラウザ側ロジック】Vite ビルド対象
-│   └── stripe-client.ts / booking-interaction.ts
-│
-├── db/                      # 【データアクセス】
-│   ├── schema.sql           # テーブル定義
-│   ├── repositories/        # 関数化された DB 操作（booking-db.ts, plan-db.ts 等）
-│   └── seeds/               # 初期データ（master, schedule, slots）
-│
-├── constants/               # 【静的定義】info.ts（価格、名称、定数）
-└── _sandbox/                # 【検証エリア】実験場・単体テスト（00_admin 〜 14_db_flow）
+└── (Logic / Data: ロジックとデータ)
+    ├── db/               # DB定義・リポジトリ・初期データ
+    ├── lib/              # サーバー側ロジック（計算・Stripe連携等）
+    └── client/           # ブラウザ側スクリプト（JSインタラクション）
 ~~~
 
 > **Note**
