@@ -1,3 +1,5 @@
+// http://localhost:5173/_debug/test05
+
 /**
  * @file 05_webhook.ts
  * 3つのターミナルとブラウザを繋ぐ、オペレーター専用コンソール
