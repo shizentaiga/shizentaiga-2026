@@ -5,6 +5,7 @@
 
 import { Hono } from 'hono'
 import { renderer } from './renderer' 
+import { handleStripeWebhook } from './api/webhook'
 
 /* --- 🧱 PAGES --- */
 import { Top } from './pages/Top'      
@@ -27,6 +28,10 @@ type Bindings = { shizentaiga_db: D1Database; STRIPE_SECRET_KEY: string; }
 
 const app = new Hono<{ Bindings: Bindings }>({ strict: false }) // 末尾スラッシュ削除
 
+/* --- ⚡️ API / WEBHOOK (最優先・レンダラー不要) --- */
+app.post('/api/webhook/stripe', handleStripeWebhook);
+
+/* --- 🛡️ MIDDLEWARE --- */
 app.all('*', renderer)
 app.route('/_debug', sandboxBridge); 
 

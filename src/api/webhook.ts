@@ -1,4 +1,4 @@
-import { Stripe } from 'stripe';
+import Stripe from 'stripe';
 import { confirmBooking } from '../db/repositories/booking-db';
 
 export const handleStripeWebhook = async (c: any) => {
@@ -10,7 +10,7 @@ export const handleStripeWebhook = async (c: any) => {
 
   try {
     // 1. 署名検証
-    event = stripe.webhooks.constructEvent(
+    event = await stripe.webhooks.constructEventAsync(
       body,
       signature || '',
       c.env.STRIPE_WEBHOOK_SECRET
