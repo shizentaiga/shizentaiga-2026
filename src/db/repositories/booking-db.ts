@@ -1,12 +1,9 @@
 /**
  * @file /src/db/repositories/booking-db.ts
- * @description Cloudflare D1 から予約チップを取得。
- * [v5.9 整合性再構築：動的リードタイム・フィルタリングモデル]
- * * 根拠:
- * 1. 【ルールA】DBサーバー(SQL)の strftime('%s', 'now') を使い、
- * 実行環境のタイムゾーン設定に依存せず「現在のUnixTime」を絶対基準で取得。
- * 2. 【リードタイム対応】staffs テーブルの min_lead_time_min を JOIN し、
- * SQL内部で (現在時刻 + リードタイム) を計算。これより未来のチップのみを抽出。
+ * @description Cloudflare D1 予約チップ取得（v5.9）
+ * 
+ * 1. 【絶対基準】SQLの strftime('%s', 'now') を使い、環境に依存せず現在時刻を取得。
+ * 2. 【リードタイム】staffs.min_lead_time_min を考慮し、受付期限内のチップのみ抽出。
  */
 
 import { Context } from 'hono'
@@ -114,4 +111,71 @@ export const getAvailableDatesByTargetPlan = async (
   if (!defaultPlan) return [];
   
   return getValidatedDatesByPlan(c, defaultPlan.duration_min, defaultPlan.buffer_min);
+};
+
+/**
+ * Webhook経由で予約を確定させる
+ * [v1.5 決済確定モデル：Atomic Transaction]
+ */
+export const confirmBooking = async (
+  c: any,
+  data: {
+    plan_id: string;
+    date: string;
+    slot: string; // UnixTime文字列
+    email: string;
+    payment_intent_id: string;
+  }
+) => {
+  const db = c.env.shizentaiga_db;
+  const now = Math.floor(Date.now() / 1000);
+  const slot_id = data.slot; // slot (UnixTime) を ID として使用
+
+  try {
+    /**
+     * 1. 予約スロットの更新
+     * pending かつ 期限内(expires_at > now) のものだけを booked に変更
+     */
+    const updateSlot = db.prepare(`
+      UPDATE slots 
+      SET 
+        booking_status = 'booked',
+        user_email = ?,
+        payment_intent_id = ?,
+        updated_at = ?
+      WHERE slot_id = ? 
+        AND booking_status = 'pending'
+        AND expires_at > ?
+    `).bind(data.email, data.payment_intent_id, now, slot_id, now);
+
+    /**
+     * 2. 予約グリッドへの挿入
+     * ここで UNIQUE(schedule_id) 制約により、万が一の重複を物理的に阻止
+     * schedule_id は slot_id (開始UnixTime) と 1対1 の関係として扱う前提
+     */
+    const insertGrid = db.prepare(`
+      INSERT INTO reservation_grid (schedule_id, slot_id)
+      VALUES (?, ?)
+    `).bind(slot_id, slot_id);
+
+    // バッチ実行（トランザクション）
+    const results = await db.batch([
+      updateSlot,
+      insertGrid
+    ]);
+
+    // UPDATE文（results[0]）で変更された行数を確認
+    // 0件の場合は、期限切れか既に他で booked になっている
+    if (results[0].meta.changes === 0) {
+      console.warn(`[Confirm] No rows updated. Slot might be expired or already booked: ${slot_id}`);
+      return { success: false, reason: 'EXPIRED_OR_ALREADY_BOOKED' };
+    }
+
+    return { success: true };
+
+  } catch (error: any) {
+    // UNIQUE制約違反などで失敗した場合
+    console.error('[DB Error] confirmBooking transaction failed:', error.message);
+    return { success: false, error: error.message };
+  }
 };
