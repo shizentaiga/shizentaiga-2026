@@ -57,3 +57,16 @@
 | 言語 | 日本語固定 |
 | 返金 | 手動運用 |
 
+## 5. 処理の流れ
+1. [外部] Stripeサーバー
+イベント（決済完了）をPOST送信
+
+2. [入口] src/index.tsx (Route)
+app.post('/api/webhook/stripe', handleStripeWebhook) が受ける
+
+3. [ロジック] src/api/webhook.ts (Handler)
+handleStripeWebhook 関数が署名を検証
+metadata を取り出し、confirmBooking を呼び出す 👈 ここがトリガー
+
+4. [永続化] src/db/repositories/booking-db.ts (DB Repository)
+confirmBooking 関数が D1 トランザクションを実行
