@@ -1,12 +1,12 @@
-# 🛠 Stripe Webhook 実装計画書 (v1.3)
+# 🛠 Stripe Webhook 実装計画書 (v1.5)
 「理論的整合性に基づいた、最小構成の決済確定モデル」
 
 ---
 
 ## 0. 鉄則：Simple is Best
 
-- **例外処理の最小化**: `expires_at` と Stripe セッション期限の逆転設計（35分 vs 30分）により、タイムアウト系のガードレール実装を「ゼロ」または「最小限のログ」に留めます。
-- **物理制約の活用**: `reservation_grid` の UNIQUE 制約があるため、コード側で複雑な排他制御を書かず、DBの返り値を見て判断します。
+- **例外処理の最小化**: `expires_at`（35分）＞ Stripeセッション（30分）の逆転設計により、タイムアウト系の複雑なバリデーションを排除。
+- **物理制約の活用**: `reservation_grid` の `UNIQUE (schedule_id)` 制約を「最終防衛線」とし、アプリケーション側での二重予約チェックを簡略化。
 
 ---
 
@@ -14,10 +14,10 @@
 
 | ステップ | 実行内容 | 完了の定義 |
 |----------|----------|------------|
-| 1. DB更新関数 | `booking-db.ts` に `confirmBooking` を追加。 | batch 実行で `results[0].meta.changes === 1` であること。 |
-| 2. Webhook作成 | `api/webhook.ts` で metadata から予約情報を復元。 | 署名検証を通過し、受信データが `console.log` に出ること。 |
-| 3. メール連携 | Webhook内から `shizentaiga.com` ドメインで Resend 送信。 | 自身のメールアドレスに予約完了通知が届くこと。 |
-| 4. ルート登録 | `index.tsx` にエンドポイントを1行追加。 | `stripe listen` でローカル疎通が確認できること。 |
+| 1. DB更新関数 | `booking-db.ts` に `confirmBooking` を追加。 | D1 batch 実行で `results` が正常に返ること。 |
+| 2. Webhook作成 | `api/webhook.ts` で Metadata から情報を復元。 | 署名検証に成功し `console.log` に metadata が出ること。 |
+| 3. メール連携 | Resend を使い `contact@shizentaiga.com` から送信。 | 予約確定メールの受信確認。 |
+| 4. ルート登録 | `index.tsx` に Webhook エンドポイントを追加。 | `stripe listen` での疎通テスト成功。 |
 
 ---
 
@@ -25,48 +25,62 @@
 
 ### 【Step 1】DB層 (`booking-db.ts`)
 
-- **Atomic更新**: `UPDATE slots` と `INSERT reservation_grid` をセットで実行。
-- **顧客マージ**: 決済時の `email` を `customers` テーブルに `INSERT OR IGNORE` で放り込みます（名簿の自動蓄積）。
+**Atomic更新 (D1 Batch):**
+
+- `customers`: `email` を基に `INSERT OR IGNORE`。IDは `cst_UUID` 形式。
+- `slots`: `booking_status` を `booked` へ、`user_email` をセット。
+- `reservation_grid`: `schedule_id` と `slot_id` を挿入。ここで重複があれば失敗させる。
+
+**顧客ID生成**: `cst_${crypto.randomUUID()}` を使用。
 
 ### 【Step 2】Webhook層 (`webhook.ts`)
 
-- **通知タイミング**: DB更新成功時のみ、`c.executionCtx.waitUntil()` を利用して Resend API を叩きます。
-- **レスポンス**: 処理の成否に関わらず、Stripeに対しては速やかに `200 OK` を返します（リトライによる二重送信防止）。
+**Metadataの復元:**
+
+- 送信側: `{ plan_id, date, slot }`（※ `slot` は UnixTime 文字列）
+- 受信側: `session.metadata` から上記を取得。`slot_id` は `slot` 値（UnixTime）そのものとして扱う（既存ロジック互換）。
+
+**非同期処理**: Resend 送信は `c.executionCtx.waitUntil()` を使用し、Stripeへのレスポンスを最優先（`200 OK`）する。
 
 ### 【Step 3】メール層 (Resend)
 
-- **送信元**: `noreply@shizentaiga.com`（設定済みドメインを利用）。
-- **内容**: 日本語固定で「予約日時・プラン名」を送信。
+**送信設定:**
+
+- **From**: `contact@shizentaiga.com`
+- **Subject**: `【善幽】ご予約確定のお知らせ`
+- **Body**: 予約日、プラン名を記載した簡潔な日本語テキスト。
 
 ---
 
-## 3. 切り戻し・保守計画
+## 3. 環境変数・パラメータ定義
 
-- **即時停止**: 万が一の不具合時は、`index.tsx` の Webhook ルートをコメントアウトするだけで決済確定処理のみを停止可能（Stripe側にはログが溜まるので後でリカバリ可能）。
-- **手動対応**: 管理画面がない現在のフェーズでは、Stripe Dashboard からの通知を正（マスター）とし、必要に応じて D1 を直接操作して枠を解放します。
+| 変数名 | 定義・用途 |
+|--------|------------|
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...`（Webhook署名検証用） |
+| `RESEND_API_KEY` | `re_...`（メール送信APIキー） |
+| Metadata Keys | `plan_id`, `date`, `slot` |
 
 ---
 
-## 4. 最終確認事項（不明点は解消済み）
+## 4. 処理の連鎖（コールスタック）
+
+1. **[外部] Stripeサーバー**: 決済完了イベントをPOST送信。
+2. **[入口] `src/index.tsx`**: `app.post('/api/webhook/stripe', handleStripeWebhook)` で受信。
+3. **[ロジック] `src/api/webhook.ts`**:
+   - 署名検証 ➔ Metadata抽出。
+   - `confirmBooking(c, { plan_id, date, slot, email })` を実行。
+4. **[永続化] `src/db/repositories/booking-db.ts`**:
+   - `confirmBooking` が D1 トランザクションで `customers`, `slots`, `reservation_grid` を一気通貫で更新。
+5. **[通知] `src/api/webhook.ts`**:
+   - DB更新成功時のみ Resend 送信をトリガー。
+
+---
+
+## 5. 最終確認事項
 
 | 項目 | 方針 |
 |------|------|
 | タイムアウト | 35分設定により理論上無視 |
-| 競合 | グリッドモデルにより理論上無視 |
-| ドメイン | `shizentaiga.com` 使用。DNS設定済み。 |
-| 言語 | 日本語固定 |
-| 返金 | 手動運用 |
-
-## 5. 処理の流れ
-1. [外部] Stripeサーバー
-イベント（決済完了）をPOST送信
-
-2. [入口] src/index.tsx (Route)
-app.post('/api/webhook/stripe', handleStripeWebhook) が受ける
-
-3. [ロジック] src/api/webhook.ts (Handler)
-handleStripeWebhook 関数が署名を検証
-metadata を取り出し、confirmBooking を呼び出す 👈 ここがトリガー
-
-4. [永続化] src/db/repositories/booking-db.ts (DB Repository)
-confirmBooking 関数が D1 トランザクションを実行
+| 競合 | グリッドモデルとUNIQUE制約により物理排除 |
+| ドメイン | `shizentaiga.com`（DNS設定済み） |
+| 切り戻し | `index.tsx` の `app.post` をコメントアウトするだけで即停止可能 |
